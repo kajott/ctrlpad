@@ -56,36 +56,128 @@ _rendershader = """
 ###############################################################################
 #MARK: texture atlas
 
+class AtlasFullError(ValueError): pass
+
 class TextureAtlas:
     def __init__(self):
         self.img = Image.new('RGBA', (16, 16))
         self.tex = gl.make_texture(filter=gl.LINEAR)
 
-    def put(self, img):
-        if isinstance(img, str):
-            img = Image.open(img)
-        img = img.convert('RGBA')
+    def __init__(self, initsize=(512, 512), maxsize=None):
+        self.img = Image.new('RGBA', initsize)
+        self.tex = gl.make_texture(filter=gl.LINEAR) if gl else 0
+        self.tex_valid = False
+        if not(maxsize) and gl:
+            res = (ctypes.c_int * 1)()
+            gl.GetIntegerv(gl.MAX_TEXTURE_SIZE, res)
+            maxsize = res[0]
+        self.maxsize = maxsize or 32768
+        self.front = [(0,0)]
 
-        # TODO: determine position
-        x0, y0 = 0, 0
-
-        # paste into atlas, enlarge if needed, and upload
+    def _fit(self, img: Image, x0: int, y0: int):
         sx, sy = self.img.size
         x1 = x0 + img.size[0]
         y1 = y0 + img.size[1]
-        enlarge = (x1 > sx) or (y1 > sy)
-        if enlarge:
-            while sx < x1: sx *= 2
-            while sy < y1: sy *= 2
-            img2 = Image.new('RGBA', (sx, sy))
+        while x1 > sx: sx *= 2
+        while y1 > sy: sy *= 2
+        return ((sx, sy), sx*sy)
+
+    def put(self, img):
+        if isinstance(img, str):
+            img = Image.open(img)
+        img.load()
+        img = img.convert('RGBA')
+
+        # find the best spot along the front to add the image
+        x0, y0 = -1, -1
+        min_waste = 999999999
+        curr_size = self.img.size[0] * self.img.size[1]
+        for i in range(len(self.front)):
+            x, y = self.front[i]
+            yend = y + img.size[1]
+            consider = [j for j in range(i, len(self.front)) if self.front[j][1] < yend]
+            x = max(self.front[j][0] for j in consider)
+            xend = x + img.size[0]
+            if max(xend, yend) > self.maxsize:
+                continue  # exceeds max atlas size
+            waste = self._fit(img, x, y)[1] - curr_size
+            #print(f"     {self.front[i][0]},{self.front[i][1]}? would end up at {x},{y}, wasting {waste}")
+            for j in consider:
+                jx, jystart = self.front[j]
+                jyend = self.front[j+1][1] if ((j+1) < len(self.front)) else yend
+                jwaste = (x - jx) * (min(jyend, yend) - jystart)  # waste due to padded pixels on the left
+                ewaste = ((xend - jx) * (jyend - yend)) if ((jyend - img.size[1]) < yend < jyend) else 0  # extra waste if creating flat remaining space
+                #print(f"          F{j:02d} {jx=} {jystart=} {jyend=} {jwaste=} {ewaste=}")
+                waste += jwaste + (ewaste // 4)
+            #print(f"     {self.front[i][0]},{self.front[i][1]}? total waste={waste} considering {consider}")
+            if waste < min_waste:
+                x0, y0 = x, y
+                min_waste = waste
+        if min(x0, y0) < 0:
+            raise AtlasFullError("no space left in texture atlas")
+
+        # update the front to match the new atlas
+        x1 = x0 + img.size[0]
+        y1 = y0 + img.size[1]
+        newfront = [p for p in self.front if p[1] < y0] + [(x1, y0)]
+        # add a new point at the lower end of the new image, unless there's
+        # already one
+        for i in range(1, len(self.front)):
+            y = self.front[i][1]
+            if y < y1: continue
+            if (y > y1) and (self.front[i-1][1] >= y0):
+                newfront.append((self.front[i-1][0], y1))
+            if y >= y1: break
+        end = [p for p in self.front if p[1] >= y1]
+        if not end:
+            newfront.append((0, y1))
+        self.front = newfront + end
+
+        # paste into atlas, enlarge if needed
+        newsize = self._fit(img, x0, y0)[0]
+        if newsize > self.img.size:
+            img2 = Image.new('RGBA', newsize)
             img2.paste(self.img, (0,0))
             self.img = img2
+            self.tex_valid = False
         self.img.paste(img, (x0, y0))
-        gl.BindTexture(gl.TEXTURE_2D, self.tex)
-        if 1: # enlarge:
-            gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, sx, sy, 0, gl.RGBA, gl.UNSIGNED_BYTE, self.img.tobytes())
-        #else: incremental update (TODO)
+
+        # upload texture
+        if gl:
+            gl.BindTexture(gl.TEXTURE_2D, self.tex)
+            if self.tex_valid:
+                gl.TexSubImage2D(gl.TEXTURE_2D, 0, x0, y0, img.size[0], img.size[1], gl.RGBA, gl.UNSIGNED_BYTE, img.tobytes())
+            else:
+                gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, self.img.size[0], self.img.size[1], 0, gl.RGBA, gl.UNSIGNED_BYTE, self.img.tobytes())
+                self.tex_valid = True
         return (x0, y0)
+
+if 0:  # texture atlas unit test
+    import random; random.seed(0x13375EED)
+    a = TextureAtlas(maxsize=1024)
+    predefined = ["bahn.png", "segoe.png"]
+    n = 0
+    while n<4e9:
+        try:
+            img = Image.open(predefined.pop(0))
+        except IndexError:
+            w = random.randrange(10, 100)
+            h = random.randrange(10, 100)
+            rgb = [random.randrange(64, 128), random.randrange(128, 192), random.randrange(192, 256)]
+            random.shuffle(rgb)
+            img = Image.new('RGB', (w,h), tuple(c^0xFF for c in rgb))
+            img.paste(Image.new('RGB', (w-2, h-2), tuple(rgb)), (1,1))
+        #print(f"#{n:02d}: {img.size[0]}x{img.size[1]} ...")
+        try:
+            x,y = a.put(img)
+        except AtlasFullError:
+            break
+        print(f"#{n:02d}: {img.size[0]}x{img.size[1]} @ {x},{y} / {a.img.size[0]}x{a.img.size[1]}")
+        #print(a.front)
+        n += 1
+    print("fitted", n, "images into", a.img.size, "pixels")
+    a.img.show()
+    import sys; sys.exit(0)
 
 ###############################################################################
 #MARK: font loader

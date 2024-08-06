@@ -97,7 +97,7 @@ class _OpenGL:
         ("ActiveTexture",            None, ctypes.c_uint),
         ("TexParameteri",            None, ctypes.c_uint, ctypes.c_uint, ctypes.c_int),
         ("TexImage2D",               None, ctypes.c_uint, ctypes.c_uint, ctypes.c_uint, ctypes.c_uint, ctypes.c_uint, ctypes.c_uint, ctypes.c_uint, ctypes.c_uint, ctypes.c_void_p),
-        ("GenerateMipmap",           None, ctypes.c_uint),
+        ("TexSubImage2D",            None, ctypes.c_uint, ctypes.c_uint, ctypes.c_uint, ctypes.c_uint, ctypes.c_uint, ctypes.c_uint, ctypes.c_uint, ctypes.c_uint, ctypes.c_void_p),        ("GenerateMipmap",           None, ctypes.c_uint),
         ("GenBuffers",               None, ctypes.c_uint, ctypes.POINTER(ctypes.c_int)),
         ("BindBuffer",               None, ctypes.c_uint, ctypes.c_int),
         ("BufferData",               None, ctypes.c_uint, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_uint),
@@ -143,6 +143,12 @@ class _OpenGL:
                  FLOAT: ctypes.c_float
     }
 
+    def __init__(self):
+        self.good = False
+        self.enabled_attribs = set()
+    def __bool__(self):
+        return self.good
+
     def _load(self, get_proc_address):
         "load function pointers using the provided get_proc_address function"
         GLFUNCTYPE = ctypes.WINFUNCTYPE if (sys.platform == 'win32') else ctypes.CFUNCTYPE
@@ -158,6 +164,7 @@ class _OpenGL:
                 raise ImportError("failed to import required OpenGL function 'gl%s'" % name)
             setattr(self, ('_' + name) if hasattr(self, name) else name, funcptr)
         self.enabled_attribs = set()
+        self.good = True
 
     ##### convenience wrappers around functions that are cumbersome to use otherwise
 
