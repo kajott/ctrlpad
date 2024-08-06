@@ -328,7 +328,7 @@ class Renderer:
         self.data = array.array('f')
 
     def _new_quad(self):
-        if len(self.data) > self.max_vbo_items:
+        if len(self.data) >= self.max_vbo_items:
             self.flush()
 
     def set_texture(self, tex, w:int=1, h:int=1):
@@ -448,6 +448,69 @@ class Renderer:
         for line in text:
             self.text_line(x, y, size, line, color, align=halign)
             y += line_spacing
+
+    def wrap_text(self, width, size, text):
+        last_checked_line = ('', 0)
+        def check_width(subtext):
+            nonlocal last_checked_line
+            subtext = subtext.strip()
+            last_checked_line = (subtext, self.font.width(subtext) * size)
+            return last_checked_line
+        start = end = 0
+        for i, c in enumerate(text):
+            if c == '\n':
+                yield check_width(text[start:i-1])
+                start = end = i+1
+            elif not c.isalnum():
+                if check_width(text[start:i+1])[1] <= width:
+                    end = i+1
+                else:
+                    if end > start:
+                        yield check_width(text[start:end])
+                    start = end
+                    if check_width(text[start:i+1])[1] > width:
+                        yield last_checked_line
+                        start = i+1
+                    end = i+1
+        if (check_width(text[start:])[1] <= width) or not(end > start):
+            yield last_checked_line
+        elif end > start:
+            yield check_width(text[start:end])
+            text = text[end:].strip()
+            if text: yield check_width(text)
+
+    def fit_text_in_box(self, x0, y0, x1, y1, initial_size, text, halign=2, valign=2, line_spacing=1.0, min_size=6):
+        sx = x1 - x0
+        sy = y1 - y0
+        # find minimum size where text fits the box
+        size = initial_size
+        while True:
+            line_height = self.font.line_height * size * line_spacing
+            lines = list(self.wrap_text(sx, size, text))
+            width = max(w for _,w in lines)
+            height = line_height * (len(lines) - 1) + self.font.max_height * size
+            if (size <= min_size) or ((width <= sx) and (height <= sy)):
+                break
+            size = max(min(size * 0.9, size - 1.0), min_size)
+        # layout the actual text
+        res = []
+        if valign == 1: y0 = y1 - height
+        elif valign == 2: y0 = (y0 + y1 - height) * 0.5
+        for line, width in lines:
+            if halign == 1: x = x1 - width
+            elif halign == 2: x = (x0 + x1 - width) * 0.5
+            else: x = x0
+            res.append((x, y0, size, line))
+            y0 += line_height
+        return res
+
+    def fitted_text(self, lines, color="fff"):
+        color = self.color(color)
+        for x, y, size, line in lines:
+            self.text_line(x, y, size, line, color, color)
+
+    def text_width(self, text: str, size: float = 1.0):
+        return self.font.width(text, size)
 
 ###############################################################################
 #MARK: font importer
