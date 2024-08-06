@@ -5,7 +5,7 @@ if sys.platform == 'win32':
     import _ctypes
 from .opengl import gl
 
-__all__ = ['GLAppWindow', 'Button', 'Mod']
+__all__ = ['GLAppWindow', 'Button', 'Mod', 'Cursor']
 
 class Button:
     Left   = 1
@@ -29,6 +29,20 @@ class Mod:
     Caps   = 0x2000
     Mode   = 0x4000
     Scroll = 0x8000
+
+class Cursor:
+    Arrow     =  0
+    IBeam     =  1
+    Wait      =  2
+    Crosshair =  3
+    WaitArrow =  4
+    SizeNWSE  =  5
+    SizeNESW  =  6
+    SizeWE    =  7
+    SizeNS    =  8
+    SizeAll   =  9
+    No        = 10
+    Hand      = 11
 
 class SDL_WindowEvent(ctypes.Structure): _fields_ = [
     ('type',      ctypes.c_uint),
@@ -206,6 +220,9 @@ class GLAppWindow:
         self._lib.SDL_GetMouseFocus.restype = ctypes.c_void_p
         self._lib.SDL_GetMouseState.argtypes = [ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_int)]
         self._lib.SDL_SetWindowTitle.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+        self._lib.SDL_CreateSystemCursor.restype = ctypes.c_void_p
+        self._lib.SDL_SetCursor.argtypes = [ctypes.c_void_p]
+        self._lib.SDL_FreeCursor.argtypes = [ctypes.c_void_p]
         self._lib.SDL_GetModState.restype = ctypes.c_uint32
         if self._lib.SDL_Init(0x21):  # SDL_INIT_TIMER + SDL_INIT_VIDEO
             self._lib = None
@@ -293,6 +310,12 @@ class GLAppWindow:
     def set_title(self, title):
         "set the window title"
         self._lib.SDL_SetWindowTitle(self._win, ctypes.c_char_p(title.encode('utf-8')))
+
+    def set_cursor(self, cursor_id: int):
+        "set mouse cursor to one of the system cursors (see Cursor class/enum)"
+        c = self._lib.SDL_CreateSystemCursor(cursor_id)
+        self._lib.SDL_SetCursor(c)
+        self._lib.SDL_FreeCursor(c)
 
     def has_mouse_focus(self):
         "determine whether the mouse is inside the window"

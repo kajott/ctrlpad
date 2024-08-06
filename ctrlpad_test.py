@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import logging
 
-from ctrlpad.sdl import GLAppWindow
+from ctrlpad.sdl import GLAppWindow, Cursor
 from ctrlpad.opengl import gl
 from ctrlpad.renderer import Renderer
 
@@ -11,6 +11,7 @@ class MyApp(GLAppWindow):
         #self.renderer.add_font("segoe")
         self.renderer.add_font("bahn")
         gl.ClearColor(.12, .34, .56, .78)
+        self.set_cursor(Cursor.Hand)
 
     def on_draw(self):
         gl.Clear(gl.COLOR_BUFFER_BIT)
