@@ -1,8 +1,11 @@
 import ctypes
+import logging
 import sys
 import re
 
 __all__ = ['gl', 'GLShader', 'GLProgram']
+
+log = logging.getLogger("opengl")
 
 class _OpenGL:
     "OpenGL loader and minimal OpenGL interface"
@@ -165,6 +168,9 @@ class _OpenGL:
             setattr(self, ('_' + name) if hasattr(self, name) else name, funcptr)
         self.enabled_attribs = set()
         self.good = True
+        log.info("vendor: %s",   self.GetString(self.VENDOR).decode(errors='replace'))
+        log.info("renderer: %s", self.GetString(self.RENDERER).decode(errors='replace'))
+        log.info("version: %s",  self.GetString(self.VERSION).decode(errors='replace'))
 
     ##### convenience wrappers around functions that are cumbersome to use otherwise
 

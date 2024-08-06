@@ -1,10 +1,15 @@
 import array
 import ctypes
 import json
+import logging
 import os
 from PIL import Image
 
 from .opengl import gl, GLProgram
+
+__all__ = ['Renderer', 'TextureAtlas', 'AtlasFullError']
+
+log = logging.getLogger("renderer")
 
 ###############################################################################
 #MARK: shader
@@ -150,7 +155,8 @@ class TextureAtlas:
             else:
                 gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, self.img.size[0], self.img.size[1], 0, gl.RGBA, gl.UNSIGNED_BYTE, self.img.tobytes())
                 self.tex_valid = True
-        return (x0, y0)
+                log.info("texture atlas #%d resized to %dx%d pixels", self.tex, self.img.size[0], self.img.size[1])
+        return (x0, y0, x1, y1)
 
 if 0:  # texture atlas unit test
     import random; random.seed(0x13375EED)
@@ -169,10 +175,10 @@ if 0:  # texture atlas unit test
             img.paste(Image.new('RGB', (w-2, h-2), tuple(rgb)), (1,1))
         #print(f"#{n:02d}: {img.size[0]}x{img.size[1]} ...")
         try:
-            x,y = a.put(img)
+            x,y,u,v = a.put(img)
         except AtlasFullError:
             break
-        print(f"#{n:02d}: {img.size[0]}x{img.size[1]} @ {x},{y} / {a.img.size[0]}x{a.img.size[1]}")
+        print(f"#{n:02d}: {img.size[0]}x{img.size[1]} @ {x},{y}..{u},{v} / {a.img.size[0]}x{a.img.size[1]}")
         #print(a.front)
         n += 1
     print("fitted", n, "images into", a.img.size, "pixels")
@@ -185,18 +191,15 @@ if 0:  # texture atlas unit test
 class MSDFFont:
     _nullglyph = (0.5, False, 0.0,0.0,0.0,0.0, 0.0,0.0,0.0,0.0)
 
-    def __init__(self, filename: str, attex: TextureAtlas):
+    def __init__(self, filename: str, atlas: TextureAtlas):
         basename = os.path.splitext(filename)[0]
         with open(basename + ".json") as f:
             data = json.load(f)
         #import pprint; pprint.pprint(data)
         self.name = data.get('name', "???")
 
-        atlas = data.get('atlas', {})
-        img_width  = atlas.get('width',  100)
-        img_height = atlas.get('height', 100)
-        self.atlas = attex
-        img_x0, img_y0 = self.atlas.put(basename + ".png")
+        self.atlas = atlas
+        img_x0, img_y0, img_x1, img_y1 = self.atlas.put(basename + ".png")
 
         metrics = data.get('metrics', {})
         asc  = metrics.get('ascender', 1.0)
@@ -219,10 +222,8 @@ class MSDFFont:
                 self.glyphs[cp] = (adv, True,
                     pb['left'],  asc - pb['top'],
                     pb['right'], asc - pb['bottom'],
-                    img_x0 +              ab['left'],
-                    img_y0 + img_height - ab['top'],
-                    img_x0 +              ab['right'],
-                    img_y0 + img_height - ab['bottom'])
+                    img_x0 + ab['left'],  img_y1 - ab['top'],
+                    img_x0 + ab['right'], img_y1 - ab['bottom'])
             else:
                 self.glyphs[cp] = (adv, False, 0.0,0.0,0.0,0.0, 0.0,0.0,0.0,0.0)
         # for cp, g in sorted(self.glyphs.items()): print(cp, g)
@@ -236,6 +237,8 @@ class MSDFFont:
         self.kern = {}
         for pair in data.get('kerning', []):
             self.kern[(pair.get('unicode1', 0), pair.get('unicode2', 0))] = pair.get('advance', 0.0)
+
+        log.info("loaded font '%s' (%d glyphs, %d kerning pairs)", self.name, len(self.glyphs), len(self.kern))
 
     def width(self, text: str, size: float = 1.0):
         x = 0.0
@@ -293,22 +296,35 @@ class Renderer:
         self.fonts = {}
         self.fallback_font = NullFont(self.atlas)
         self.font = self.fallback_font
+        self.max_nquads = self.max_nbatches = 0
 
     def begin_frame(self, viewport_width: int, viewport_height: int):
         self.prog.use()
         gl.Uniform4f(self.prog.uArea, 2.0 / viewport_width, -2.0 / viewport_height, -1.0, 1.0)
         self.data = array.array('f')
+        self.nquads = 0
+        self.nbatches = 0
+
+    def end_frame(self):
+        self.flush()
+        if (self.nquads > self.max_nquads) or (self.nbatches > self.max_nbatches):
+            log.info("most complex frame: %d quad(s) across %d batch(es)", self.nquads, self.nbatches)
+            self.max_nquads = max(self.max_nquads, self.nquads)
+            self.max_nbatches = max(self.max_nbatches, self.nbatches)
 
     def flush(self):
         if not len(self.data): return
         assert not(len(self.data) % self.vbo_items_per_quad)
+        n = len(self.data) // self.vbo_items_per_quad
+        self.nquads += n
+        self.nbatches += 1
         self.prog.use()
         addr, size = self.data.buffer_info()
         gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, self.ibo)
         gl.BindBuffer(gl.ARRAY_BUFFER, self.vbo)
         gl.BufferData(gl.ARRAY_BUFFER, type=gl.FLOAT, usage=gl.STATIC_DRAW, data=addr, size=size*self.data.itemsize)
         gl.BindTexture(gl.TEXTURE_2D, self.tex)
-        gl.DrawElements(gl.TRIANGLES, len(self.data) // self.vbo_items_per_quad * 6, gl.UNSIGNED_SHORT, ctypes.c_void_p(0))
+        gl.DrawElements(gl.TRIANGLES, n * 6, gl.UNSIGNED_SHORT, ctypes.c_void_p(0))
         self.data = array.array('f')
 
     def _new_quad(self):
@@ -328,7 +344,7 @@ class Renderer:
         try:
             self.font = MSDFFont(filename, self.atlas)
         except Exception as e:
-            print(f"ERROR: can not load font '{filename}' - {e}")
+            log.error("failed to load font '%s': %s", filename, str(e))
             return None
         # the atlas might have been resized -> force coordinate update
         self.tex = 0
@@ -350,21 +366,26 @@ class Renderer:
         if isinstance(c, (tuple, list)):
             if len(c) == 4: return c
             if len(c) == 3: return (*c, 1.0)
-        elif isinstance(c, str):
-            try:
-                return Renderer._colorcache[c]
-            except KeyError:
-                pass
+        try:
+            return Renderer._colorcache[c]
+        except KeyError:
+            pass
+        res = None
+        if isinstance(c, str):
             if c.startswith('#'): c = c[1:]
             res = None
-            if len(c) == 3: res = (int(c[0],16)/15, int(c[1],16)/15, int(c[2],16)/15, 1.0)
-            if len(c) == 4: res = tuple(int(_,16)/15 for _ in c)
-            if len(c) == 6: res = (int(c[0:2],16)/255, int(c[2:4],16)/255, int(c[4:6],16)/255, 1.0)
-            if len(c) == 8: res = (int(c[0:2],16)/255, int(c[2:4],16)/255, int(c[4:6],16)/255, int(c[6:8],16)/255)
-            if res:
-                Renderer._colorcache[c] = res
-                return res
-        raise TypeError("invalid color " + repr(c))
+            try:
+                if len(c) == 3: res = (int(c[0],16)/15, int(c[1],16)/15, int(c[2],16)/15, 1.0)
+                if len(c) == 4: res = tuple(int(_,16)/15 for _ in c)
+                if len(c) == 6: res = (int(c[0:2],16)/255, int(c[2:4],16)/255, int(c[4:6],16)/255, 1.0)
+                if len(c) == 8: res = (int(c[0:2],16)/255, int(c[2:4],16)/255, int(c[4:6],16)/255, int(c[6:8],16)/255)
+            except ValueError:
+                pass
+        if not res:
+            log.error("invalid color %s", repr(c))
+            res = (1.0, 0.0, 1.0, 1.0)
+        Renderer._colorcache[c] = res
+        return res
 
     def box(self, x0, y0, x1, y1, colorU, colorL=None, radius=0.0, blur=1.0, offset=0.0):
         colorU = self.color(colorU)
