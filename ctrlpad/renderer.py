@@ -294,11 +294,12 @@ class Renderer:
         self.atlas = TextureAtlas()
         self.set_texture(self.atlas)
         self.fonts = {}
-        self.fallback_font = NullFont(self.atlas)
-        self.font = self.fallback_font
+        self.default_font = NullFont(self.atlas)
+        self.font = self.default_font
         self.max_nquads = self.max_nbatches = 0
 
     def begin_frame(self, viewport_width: int, viewport_height: int):
+        "begin drawing a frame"
         self.prog.use()
         gl.Uniform4f(self.prog.uArea, 2.0 / viewport_width, -2.0 / viewport_height, -1.0, 1.0)
         self.data = array.array('f')
@@ -306,6 +307,7 @@ class Renderer:
         self.nbatches = 0
 
     def end_frame(self):
+        "finish drawing a frame"
         self.flush()
         if (self.nquads > self.max_nquads) or (self.nbatches > self.max_nbatches):
             log.info("most complex frame: %d quad(s) across %d batch(es)", self.nquads, self.nbatches)
@@ -313,6 +315,7 @@ class Renderer:
             self.max_nbatches = max(self.max_nbatches, self.nbatches)
 
     def flush(self):
+        "flush and render the currently batched quads"
         if not len(self.data): return
         assert not(len(self.data) % self.vbo_items_per_quad)
         n = len(self.data) // self.vbo_items_per_quad
@@ -327,11 +330,8 @@ class Renderer:
         gl.DrawElements(gl.TRIANGLES, n * 6, gl.UNSIGNED_SHORT, ctypes.c_void_p(0))
         self.data = array.array('f')
 
-    def _new_quad(self):
-        if len(self.data) >= self.max_vbo_items:
-            self.flush()
-
     def set_texture(self, tex, w:int=1, h:int=1):
+        "change the texture to be used for the following draw calls"
         if isinstance(tex, TextureAtlas):
             return self.set_texture(tex.tex, *tex.img.size)
         if tex == self.tex: return
@@ -341,6 +341,7 @@ class Renderer:
         self.tex = tex
 
     def add_font(self, filename):
+        "load and register a new font, and return its name (or None in case of failure)"
         try:
             self.font = MSDFFont(filename, self.atlas)
         except Exception as e:
@@ -350,19 +351,23 @@ class Renderer:
         self.tex = 0
         self.set_texture(self.font.atlas)
         self.fonts[self.font.name] = self.font
-        if not self.fallback_font:
-            self.fallback_font = self.font
+        if not self.default_font:
+            self.default_font = self.font
         return self.font.name
 
     def set_font(self, font):
-        if isinstance(font, str):
-            self.font = self.fonts.get(font, self.fallback_font)
+        "set the font for the next draw calls (by name or instance)"
+        if not font:
+            self.font = self.default_font
+        elif isinstance(font, str):
+            self.font = self.fonts.get(font, self.default_font)
         else:
             self.font = font
         return self.font
 
     @staticmethod
     def color(c):
+        "translate a color from hex code into a 4-tuple as required for drawing"
         if isinstance(c, (tuple, list)):
             if len(c) == 4: return c
             if len(c) == 3: return (*c, 1.0)
@@ -388,9 +393,19 @@ class Renderer:
         return res
 
     def box(self, x0, y0, x1, y1, colorU, colorL=None, radius=0.0, blur=1.0, offset=0.0):
+        """
+        Draw a rounded rectangle or circle.
+        - x0,y0  = upper-left coordinate
+        - x1,y1  = lower-right coordinate (non-inclusive)
+        - colorU = fill color at the upper edge
+        - colorL = fill color at the lower edge (or None if no gradient is desired)
+        - radius = border radius (clamped to a circle if larger than the box's size)
+        - blur   = amount of antialiasing or blur (0 = no AA, 1 = normal AA, >1 = blur)
+        - offset = offset of the blur
+        """
         colorU = self.color(colorU)
         colorL = self.color(colorL) if not(colorL is None) else colorU
-        self._new_quad()
+        if len(self.data) >= self.max_vbo_items: self.flush()
         w = (x1 - x0) * 0.5
         h = (y1 - y0) * 0.5
         r = min(min(w, h), radius)
@@ -404,6 +419,19 @@ class Renderer:
         ])
 
     def outline_box(self, x0, y0, x1, y1, width, colorO, colorU, colorL=None, radius=0.0, shadow_offset=0.0, shadow_blur=0.0, shadow_alpha=1.0, shadow_grow=0.0):
+        """
+        Draw a rounded rectangle or circle with an outline and optional drop shadow.
+        - x0,y0  = upper-left coordinate
+        - x1,y1  = lower-right coordinate (non-inclusive)
+        - colorO = color of the outline
+        - colorU = fill color at the upper edge
+        - colorL = fill color at the lower edge (or None if no gradient is desired)
+        - radius = border radius (clamped to a circle if larger than the box's size)
+        - shadow_offset = offset of the drop shadow
+        - shadow_blur   = amount of blur to add to the drop shadow
+        - shadow_grow   = amount of pixels to grow the drop shadow
+        - shadow_alpha  = opacity of the drop shadow
+        """
         if ((shadow_offset > 0.0) or (shadow_grow > 0.0)) and (shadow_alpha > 0.0):
             black = (0.0, 0.0, 0.0, shadow_alpha)
             self.box(x0 + shadow_offset - shadow_grow,
@@ -418,6 +446,15 @@ class Renderer:
         self.box(x0 + width, y0 + width, x1 - width, y1 - width, colorU, colorL, radius=radius-width)
 
     def text_line(self, x, y, size, text:str, colorU="fff", colorL=None, align=0):
+        """
+        Draw a single line of text with the currently selected MSDF font.
+        - x,y    = text position (upper-left corner)
+        - size   = text size
+        - text   = string to draw
+        - colorU = text color at the upper edge
+        - colorL = text color at the lower edge (or None if no gradient is desired)
+        - align  = horizontal alignment (0=left, 1=right, 2=center)
+        """
         self.set_texture(self.font.atlas)
         colorU = self.color(colorU)
         colorL = self.color(colorL) if not(colorL is None) else colorU
@@ -428,7 +465,7 @@ class Renderer:
             x += self.font.kern.get((prev, cp), 0.0) * size
             adv, valid, px0,py0,px1,py1, tx0,ty0,tx1,ty1 = self.font.glyphs.get(cp, self.font.fallback)
             if valid:
-                self._new_quad()
+                if len(self.data) >= self.max_vbo_items: self.flush()
                 self.data.extend([
                     # x,          y,             tcX,tcY, mode, szX,szY,szR, off,blur, color
                     x + px0*size, y + py0*size,  tx0,ty0,  1.0, 0.0,0.0,0.0, 0.0,1.33, *colorU,
@@ -440,6 +477,17 @@ class Renderer:
             prev = cp 
 
     def text(self, x, y, size, text, color="fff", halign=0, valign=0, line_spacing=1.0):
+        """
+        Draw a multiple lines of text with the currently selected MSDF font.
+        - x,y    = text position (upper-left corner)
+        - size   = text size
+        - text   = text to draw; either a list with one string per line, or a
+                   single string with newline characters ('\n')
+        - color  = text color
+        - halign = horizontal alignment (0=left, 1=right, 2=center)
+        - valign = vertical alignment (0=top, 1=bottom, 2=middle)
+        - line_spacing = relative scaling factor for the line height
+        """
         if isinstance(text, str):
             text = text.split('\n')
         line_spacing *= self.font.line_height * size
@@ -450,6 +498,14 @@ class Renderer:
             y += line_spacing
 
     def wrap_text(self, width, size, text):
+        """
+        Wrap a string into multiple lines based on the currently selected MSDF font.
+        - width = desired maximum width
+        - size  = text size
+        - text  = text string; every non-alphanumeric character is considered
+                  as a potential wrapping location; '\n' are forced newlines
+        Yields a sequence of (line, width_of_this_line) tuples.
+        """
         last_checked_line = ('', 0)
         def check_width(subtext):
             nonlocal last_checked_line
@@ -480,6 +536,21 @@ class Renderer:
             if text: yield check_width(text)
 
     def fit_text_in_box(self, x0, y0, x1, y1, initial_size, text, halign=2, valign=2, line_spacing=1.0, min_size=6):
+        """
+        Computes layout that fits a string into a rectangle,
+        based on the currently selected MSDF font.
+        - x0,y0  = upper-left coordinate of the rectangle
+        - x1,y1  = lower-right coordinate of the rectangle (non-inclusive)
+        - initial_size = desired maximum text size; will be reduced if it
+                         doesn't fit
+        - min_size = minimum allowed text size
+        - text = text to layout (see wrap_text() for detals)
+        - halign = horizontal alignment (0=left, 1=right, 2=center)
+        - valign = vertical alignment (0=top, 1=bottom, 2=middle)
+        - line_spacing = relative scaling factor for the line height
+        The result is *not* drawn right away; instead, a list of
+        (x,y, size, line) tuples is generated that can be used to draw later.
+        """
         sx = x1 - x0
         sy = y1 - y0
         # find minimum size where text fits the box
@@ -505,11 +576,16 @@ class Renderer:
         return res
 
     def fitted_text(self, lines, color="fff"):
+        """
+        Draw a pre-layouted text block as generated by fit_text_in_box().
+        The currently selected font must be the same as during layouting.
+        """
         color = self.color(color)
         for x, y, size, line in lines:
             self.text_line(x, y, size, line, color, color)
 
     def text_width(self, text: str, size: float = 1.0):
+        "determine width of a text in the currently selected MSDF font"
         return self.font.width(text, size)
 
 ###############################################################################
