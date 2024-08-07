@@ -26,6 +26,7 @@ class Control:
         self.children = []
         self.geometry = (0,0,0,0)
         self.invalidate_layout()
+        self.click_x, self.click_y = 0, 0
 
     def get(self, key: str, default=None):
         if self.state:
@@ -55,6 +56,20 @@ class Control:
 
     def do_draw(self, env: ControlEnvironment, x0: int, y0: int, x1: int, y1: int):
         pass
+
+    def on_click(self, env: ControlEnvironment, x: int, y: int):
+        self.click_x, self.click_y = x, y
+        for child in self.children:
+            x0, y0, x1, y1 = child.geometry
+            if (x0 <= x < x1) and (y0 <= y < y1):
+                child.on_click(env, x, y)
+
+    def on_drag(self, env: ControlEnvironment, x: int, y: int):
+        self.click_x, self.click_y = x, y
+        for child in self.children:
+            x0, y0, x1, y1 = child.geometry
+            if (x0 <= x < x1) and (y0 <= y < y1):
+                child.on_drag(env, x, y)
 
 
 class GridLayout(Control):
@@ -105,6 +120,18 @@ class TextControl(Control):
 
 
 class Button(TextControl):
+    default_delay = 2
+
+    def __init__(self, text, cmd=None, **style):
+        super().__init__(text, **style)
+        self.cmd = cmd
+        self.text = text
+        self.delayed_click = None
+
+    @property
+    def active(self):
+        return (self.state == 'active')
+
     def do_layout(self, env: ControlEnvironment, x0: int, y0: int, x1: int, y1: int):
         self.border = env.scale(self.get('border', 3))
         self.shadow = env.scale(self.get('shadow', 15))
@@ -116,6 +143,16 @@ class Button(TextControl):
             self.get('halign', 2), self.get('valign', 2))
 
     def do_draw(self, env: ControlEnvironment, x0: int, y0: int, x1: int, y1: int):
+        # delayed click handler
+        if self.delayed_click:
+            self.delayed_click -= 1
+        if self.delayed_click == 0:
+            self.delayed_click = None
+            if self.cmd: self.cmd(env, self)
+            if not self.get('toggle'):
+                self.state = None
+
+        # actual drawing
         env.renderer.outline_box(
             x0,y0, x1,y1, self.border,
             colorO=self.get('outline', "666"),
@@ -126,3 +163,17 @@ class Button(TextControl):
             shadow_blur=self.shadow,
             shadow_grow=self.shadow)
         env.renderer.fitted_text(self.text_layout, self.get('text', "000"))
+
+    def on_click(self, env: ControlEnvironment, x: int, y: int):
+        if self.get('manual'):
+            if self.cmd: self.cmd(env, self)
+            return
+        if self.state == 'disabled':
+            self.clicked = False
+            return
+        # queue handling of the click in the next frame
+        # (so the visual state change can be seen)
+        self.state = 'active' if (not(self.state) or not(self.get('toggle'))) else None
+        delay = self.get('delay', self.default_delay)
+        self.delayed_click = delay
+        env.window.request_frames(delay)

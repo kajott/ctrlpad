@@ -18,7 +18,8 @@ class MyApp(GLAppWindow):
         self.env = ControlEnvironment(self, self.renderer)
         self.grid = GridLayout(16,4, margin=20, padding=15)
         self.grid.put(0,0, 2,2, Button("PANIC BUTTON", disabled_fill1="777", disabled_fill2="999", disabled_text="444")).state = 'disabled'
-        self.grid.put(2,0, 2,2, Button("COOL"))
+        self.grid.put(2,0, 2,2, Button("CLICK", active_fill1="#ffc")).cmd = lambda e,b: print("Hellorld!")
+        self.grid.put(4,0, 2,2, Button("TOGGLE", active_fill1="#ffc", toggle=True)).cmd = lambda e,b: print("toggle state:", b.active)
         self.grid.layout(self.env, 0,0, self.vp_width, self.vp_height)
 
     def on_resize(self):
@@ -46,6 +47,10 @@ class MyApp(GLAppWindow):
 
     def on_key_down(self, sym: str):
         if sym == 'Q': self.quit()
+
+    def on_mouse_down(self, x: int, y: int, button: int):
+        logging.debug("click @ %d,%d", x, y)
+        self.grid.on_click(self.env, x, y)
 
 
 if __name__ == "__main__":
