@@ -54,13 +54,15 @@ class Control:
     - disabled = inactive; can't be interacted with
     """
 
-    def __init__(self, state=None, **style):
+    def __init__(self, state=None, visible=True, **style):
         self.style = style
         self.state = state
+        self.visible = visible
         self.children = []
         self.geometry = (0,0,0,0)
         self.invalidate_layout()
         self.click_x, self.click_y = 0, 0
+        self.drag_child = None
 
     def get(self, key: str, default=None):
         "get a style parameter, prefixed with the current state, if any"
@@ -102,11 +104,13 @@ class Control:
         """
         Draw the control.
 
-        This is the interface function; the actual work is done in do_layout.
+        This is the interface function; the actual work is done in do_draw.
         This function also calls draw() on all children.
         Also updates the layout if it has been marked as dirty using
         invalidate_layout().
         """
+        if not self.visible:
+            return
         if not self.layout_valid:
             self.layout(env, *self.geometry)
         self.do_draw(env, *self.geometry)
@@ -128,7 +132,8 @@ class Control:
         self.click_x, self.click_y = x, y
         for child in self.children:
             x0, y0, x1, y1 = child.geometry
-            if (x0 <= x < x1) and (y0 <= y < y1):
+            if child.visible and (x0 <= x < x1) and (y0 <= y < y1):
+                self.drag_child = child
                 child.on_click(env, x, y)
 
     def on_drag(self, env: ControlEnvironment, x: int, y: int):
@@ -140,11 +145,8 @@ class Control:
         coordinates and forwards the event to the affected client.
         Subclasses override this with control-specific functionality.
         """
-        self.click_x, self.click_y = x, y
-        for child in self.children:
-            x0, y0, x1, y1 = child.geometry
-            if (x0 <= x < x1) and (y0 <= y < y1):
-                child.on_drag(env, x, y)
+        if self.drag_child:
+            self.drag_child.on_drag(env, x, y)
 
 class TextControl(Control):
     "base class for controls having a text"

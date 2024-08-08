@@ -18,8 +18,9 @@ class MyApp(GLAppWindow):
         self.env = ControlEnvironment(self, self.renderer)
         self.grid = GridLayout(16,4, margin=20, padding=15)
 
-        self.grid.put(0,0, 2,2, Button("PANIC BUTTON")).state = 'disabled'
-        self.grid.put(2,0, 2,2, Button("CLICK")).cmd = lambda e,b: print("Hellorld!")
+        panic = self.grid.put(0,0, 2,2, Button("PANIC BUTTON", state='disabled', hue=20, sat=.2))
+        panic.cmd = lambda e,b: setattr(panic, 'visible', False)
+        self.grid.put(2,0, 2,2, Button("CLICK")).cmd = lambda e,b: setattr(panic, 'state', None)
         self.grid.put(4,0, 2,2, Button("TOGGLE", toggle=True)).cmd = lambda e,b: print("toggle state:", b.active)
 
         self.grid.put(0,2, 12,1, Label("COLORS", valign=1, bar=3))
@@ -30,9 +31,12 @@ class MyApp(GLAppWindow):
 
         self.grid.layout(self.env, 0,0, self.vp_width, self.vp_height)
 
-    def on_resize(self):
-        logging.info("screen resized to %dx%d", self.vp_width, self.vp_height)
-        self.grid.layout(self.env, 0,0, self.vp_width, self.vp_height)
+    def on_resize(self, old_w, old_h):
+        w, h = self.vp_width, self.vp_height
+        logging.info("screen resized to %dx%d", w, h)
+        self.env.update_scale()
+        self.grid.layout(self.env, 0,0, w, h)
+        self.request_frames(1)
 
     def on_draw(self):
         gl.Clear(gl.COLOR_BUFFER_BIT)
