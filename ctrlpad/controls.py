@@ -2,6 +2,7 @@ import logging
 
 from .sdl import GLAppWindow
 from .renderer import Renderer
+from . import color
 
 __all__ = [
     'ControlEnvironment',
@@ -53,9 +54,9 @@ class Control:
     - disabled = inactive; can't be interacted with
     """
 
-    def __init__(self, **style):
+    def __init__(self, state=None, **style):
         self.style = style
-        self.state = None
+        self.state = state
         self.children = []
         self.geometry = (0,0,0,0)
         self.invalidate_layout()
@@ -67,6 +68,11 @@ class Control:
             return self.style.get(self.state + '_' + key, self.style.get(key, default))
         else:
             return self.style.get(key, default)
+
+    def weak_set(self, key: str, value):
+        "set a style parameter, unless it's already defined"
+        if not(key in self.style):
+            self.style[key] = value
 
     def invalidate_layout(self):
         """mark the layout of this control and its children as "dirty"
@@ -232,10 +238,13 @@ class Button(TextControl):
         - border  ~ = border/outline width
         - radius  ~ = rounding radius
         - shadow  ~ = shadow size/offset
+        - hue       = base hue in degrees (30 = red, 142 = green, 265 = blue)
+        - sat       = base saturation (0.0 = monochrome, 0.37 = fully saturated)
+        - light     = base lightness
+        - color   * = text color
         - outline * = border/outline color
         - fill1   * = background color at the top
         - fill2   * = background color at the bottom
-        - color   * = text color
         - font      = font to use for the text
         - manual = True to disable all automatic event handling and just call
                    cmd() when clicked;
@@ -248,11 +257,35 @@ class Button(TextControl):
                    after cmd() has been called;
                    True to retain the "active" state and toggle back to
                    normal state after the next click.
+        The values of 'hue', 'sat' and 'light' are used to compute the other
+        color values ('outline', 'fill1', 'fill2') for all major states (None,
+        'active' and 'disabled') unless these are specified explicitly.
         """
         super().__init__(text, **style)
         self.cmd = cmd
         self.text = text
         self.delayed_click = None
+
+        # set colors based on Oklch values
+        h = self.get('hue', 30)
+        c = self.get('sat', 0.0)
+        l = self.get('light', 0.75)
+        lab_text = color.tooklab(color.parse(self.get('color', "000")))
+        lab_light = color.lch2lab(0.98, 0.05, 100)
+        t_light = 0.75
+        lab_outline = color.lch2lab(l * 0.5,  c * 0.5, h)
+        lab_fill1   = color.lch2lab(l + 0.05, c, h)
+        lab_fill2   = color.lch2lab(l - 0.05, c, h)
+        self.weak_set('outline', color.oklab(*lab_outline))
+        self.weak_set('fill1',   color.oklab(*lab_fill1))
+        self.weak_set('fill2',   color.oklab(*lab_fill2))
+        self.weak_set('disabled_outline', color.oklch(l * 0.3, c * 0.25, h))
+        self.weak_set('disabled_fill1',   color.oklch(l * 0.6 + 0.05, c * 0.5, h))
+        self.weak_set('disabled_fill2',   color.oklch(l * 0.6 - 0.05, c * 0.5, h))
+        self.weak_set('active_outline', color.oklab(*color.lerp(lab_outline, lab_light, t_light * 0.5)))
+        self.weak_set('active_fill1',   color.oklab(*color.lerp(lab_fill1,   lab_light, t_light)))
+        self.weak_set('active_fill2',   color.oklab(*color.lerp(lab_fill2,   lab_light, t_light)))
+        self.weak_set('active_color',   color.oklab(*color.lerp(lab_text,    lab_light, t_light * 0.5)))
 
     @property
     def active(self):
@@ -261,7 +294,7 @@ class Button(TextControl):
     def do_layout(self, env: ControlEnvironment, x0: int, y0: int, x1: int, y1: int):
         self.border = env.scale(self.get('border', 3))
         self.shadow = env.scale(self.get('shadow', 15))
-        self.radius = env.scale(self.get('radius', 30))
+        self.radius = env.scale(self.get('radius', 25))
         env.renderer.set_font(self.get('font'))
         self.text_layout = env.renderer.fit_text_in_box(
             x0 + self.border * 1.5, y0 + self.border,

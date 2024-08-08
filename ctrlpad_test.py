@@ -17,9 +17,16 @@ class MyApp(GLAppWindow):
 
         self.env = ControlEnvironment(self, self.renderer)
         self.grid = GridLayout(16,4, margin=20, padding=15)
-        self.grid.put(0,0, 2,2, Button("PANIC BUTTON", disabled_fill1="777", disabled_fill2="999", disabled_text="444")).state = 'disabled'
-        self.grid.put(2,0, 2,2, Button("CLICK", active_fill1="#ffc")).cmd = lambda e,b: print("Hellorld!")
-        self.grid.put(4,0, 2,2, Button("TOGGLE", active_fill1="#ffc", toggle=True)).cmd = lambda e,b: print("toggle state:", b.active)
+
+        self.grid.put(0,0, 2,2, Button("PANIC BUTTON")).state = 'disabled'
+        self.grid.put(2,0, 2,2, Button("CLICK")).cmd = lambda e,b: print("Hellorld!")
+        self.grid.put(4,0, 2,2, Button("TOGGLE", toggle=True)).cmd = lambda e,b: print("toggle state:", b.active)
+
+        for i, name in enumerate("RED YELLOW GREEN CYAN BLUE MAGENTA".split()):
+            hue, sat = 30 + i * 60, 0.1
+            self.grid.put(i*2,3, 2,2, Button(name, hue=hue, sat=sat, toggle=True))
+            self.grid.put(i*2,5, 1,1, Button(name[0], hue=hue, sat=sat, state='disabled'))
+
         self.grid.layout(self.env, 0,0, self.vp_width, self.vp_height)
 
     def on_resize(self):
@@ -32,14 +39,8 @@ class MyApp(GLAppWindow):
 
         self.renderer.text(self.vp_width, self.vp_height, self.vp_height//4, "CAPTION", "0001", halign=1, valign=1)
 
-        self.renderer.box(400,100, 600,400, "fff4")
-        self.renderer.text(400,100, 20, [l for l,w in self.renderer.wrap_text(200, 20, "This is a very long text, which I'd like to flow nicely into its box.")])
-
-        self.renderer.box(700,100, 800,200, "fff4")
-        self.renderer.fitted_text(self.renderer.fit_text_in_box(700,100, 800,200, 20, "Medium-Length Text Here"))
-
-        self.renderer.box(700,300, 800,400, "fff4")
-        self.renderer.fitted_text(self.renderer.fit_text_in_box(700,300, 800,400, 20, "Slightly Longer Text Here (needs resizing)"))
+        self.renderer.box(700,100, 900,200, "fff4")
+        self.renderer.fitted_text(self.renderer.fit_text_in_box(700,100, 900,200, 20, "This is a very long text, which I'd like to flow nicely into its box."))
 
         self.grid.draw(self.env)
 
