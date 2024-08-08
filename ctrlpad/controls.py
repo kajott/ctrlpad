@@ -8,7 +8,7 @@ __all__ = [
     'ControlEnvironment',
     'Control', 'TextControl',
     'GridLayout',
-    'Button'
+    'Label', 'Button'
 ]
 
 ###############################################################################
@@ -214,6 +214,52 @@ class GridLayout(Control):
                 y0 + csy * child.grid_end_y - padding)
 
 ###############################################################################
+# MARK: Label
+
+class Label(TextControl):
+    """
+    Text label to be put alongside other controls
+    """
+
+    def __init__(self, text, cmd=None, **style):
+        """
+        Instantiate the label with the following (mostly optional) parameters:
+        [* = can be different for each control state; ~ = in abstract size units]
+        - text   = text to display on the label
+        - font   = font to use for the text
+        - size ~ = default text size (will shrink automatically if text
+                   doesn't fit)
+        - halign = horizontal text alignment: 0=left, 1=right, 2=center (default)
+        - valign = vertical text alignment: 0=top, 1=bottom, 2=middle (default)
+        - color  = label color
+        - bar    = width of horizontal bar next to the text
+        """
+        super().__init__(text, **style)
+
+    def do_layout(self, env: ControlEnvironment, x0: int, y0: int, x1: int, y1: int):
+        env.renderer.set_font(self.get('font'))
+        font_size = env.scale(self.get('size', 50))
+        self.text_layout = env.renderer.fit_text_in_box(
+            x0, y0, x1, y1, font_size, self.text,
+            self.get('halign', 2), self.get('valign', 2))
+        bar_keepout = font_size // 3
+        self.bar_left  = min(x0 for x0,y0,x1,y1,size,line in self.text_layout) - bar_keepout
+        self.bar_right = max(x1 for x0,y0,x1,y1,size,line in self.text_layout) + bar_keepout
+        self.bar_width = env.scale(self.get('bar', 0))
+        self.bar_y0 = round((self.text_layout[0][1] + self.text_layout[-1][3] - self.bar_width) * 0.5)
+        self.bar_y1 = self.bar_y0 + self.bar_width
+        self.color = color.parse(self.get('color', "fffc"))
+
+    def do_draw(self, env: ControlEnvironment, x0: int, y0: int, x1: int, y1: int):
+        env.renderer.set_font(self.get('font'))
+        env.renderer.fitted_text(self.text_layout, self.color)
+        if self.bar_width > 0:
+            if self.bar_left > x0:
+                env.renderer.box(x0, self.bar_y0, self.bar_left, self.bar_y1, self.color, self.color, self.bar_width)
+            if self.bar_right < x1:
+                env.renderer.box(self.bar_right, self.bar_y0, x1, self.bar_y1, self.color, self.color, self.bar_width)
+
+###############################################################################
 # MARK: Button
 
 class Button(TextControl):
@@ -228,9 +274,10 @@ class Button(TextControl):
         """
         Instantiate the button with the following (mostly optional) parameters:
         [* = can be different for each control state; ~ = in abstract size units]
-        - text = text to display on the button
-        - cmd = function to call when clicked; signature:
-                    buttonCommand(env: ControlEnvironment, source: Button)
+        - text   = text to display on the button
+        - cmd    = function to call when clicked; signature:
+                       buttonCommand(env: ControlEnvironment, source: Button)
+        - font   = font to use for the text
         - size ~ = default text size (will shrink automatically if text
                    doesn't fit)
         - halign = horizontal text alignment: 0=left, 1=right, 2=center (default)
@@ -245,7 +292,6 @@ class Button(TextControl):
         - outline * = border/outline color
         - fill1   * = background color at the top
         - fill2   * = background color at the bottom
-        - font      = font to use for the text
         - manual = True to disable all automatic event handling and just call
                    cmd() when clicked;
                    False (default) to set the control's state to "active"
@@ -263,7 +309,6 @@ class Button(TextControl):
         """
         super().__init__(text, **style)
         self.cmd = cmd
-        self.text = text
         self.delayed_click = None
 
         # set colors based on Oklch values

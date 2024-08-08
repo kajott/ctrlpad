@@ -522,17 +522,18 @@ class Renderer:
         - valign = vertical alignment (0=top, 1=bottom, 2=middle)
         - line_spacing = relative scaling factor for the line height
         The result is *not* drawn right away; instead, a list of
-        (x,y, size, line) tuples is generated that can be used to draw later.
+        (x0,y0, x1,y1, size, line) tuples is generated that can be used to draw later.
         """
         sx = x1 - x0
         sy = y1 - y0
         # find minimum size where text fits the box
         size = initial_size
         while True:
-            line_height = self.font.line_height * size * line_spacing
+            line_height = self.font.max_height * size
+            line_dy = self.font.line_height * size * line_spacing
             lines = list(self.wrap_text(sx, size, text))
             width = max(w for _,w in lines)
-            height = line_height * (len(lines) - 1) + self.font.max_height * size
+            height = line_dy * (len(lines) - 1) + line_height
             if (size <= min_size) or ((width <= sx) and (height <= sy)):
                 break
             size = max(min(size * 0.9, size - 1.0), min_size)
@@ -544,8 +545,8 @@ class Renderer:
             if halign == 1: x = x1 - width
             elif halign == 2: x = (x0 + x1 - width) * 0.5
             else: x = x0
-            res.append((x, y0, size, line))
-            y0 += line_height
+            res.append((x, y0, x + width, y0 + line_height, size, line))
+            y0 += line_dy
         return res
 
     def fitted_text(self, lines, color_="fff"):
@@ -554,8 +555,8 @@ class Renderer:
         The currently selected font must be the same as during layouting.
         """
         color_ = color.parse(color_)
-        for x, y, size, line in lines:
-            self.text_line(x, y, size, line, color_, color_)
+        for x0,y0, x1,y1, size, line in lines:
+            self.text_line(x0, y0, size, line, color_, color_)
 
     def text_width(self, text: str, size: float = 1.0):
         "determine width of a text in the currently selected MSDF font"

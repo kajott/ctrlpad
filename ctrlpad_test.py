@@ -4,7 +4,7 @@ import logging
 from ctrlpad.sdl import GLAppWindow, Cursor
 from ctrlpad.opengl import gl
 from ctrlpad.renderer import Renderer
-from ctrlpad.controls import ControlEnvironment, GridLayout, Button
+from ctrlpad.controls import ControlEnvironment, GridLayout, Label, Button
 
 
 class MyApp(GLAppWindow):
@@ -22,6 +22,7 @@ class MyApp(GLAppWindow):
         self.grid.put(2,0, 2,2, Button("CLICK")).cmd = lambda e,b: print("Hellorld!")
         self.grid.put(4,0, 2,2, Button("TOGGLE", toggle=True)).cmd = lambda e,b: print("toggle state:", b.active)
 
+        self.grid.put(0,2, 12,1, Label("COLORS", valign=1, bar=3))
         for i, name in enumerate("RED YELLOW GREEN CYAN BLUE MAGENTA".split()):
             hue, sat = 30 + i * 60, 0.1
             self.grid.put(i*2,3, 2,2, Button(name, hue=hue, sat=sat, toggle=True))
