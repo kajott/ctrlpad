@@ -18,10 +18,10 @@ class MyApp(GLAppWindow):
         self.env = ControlEnvironment(self, self.renderer)
         self.grid = GridLayout(16,4, margin=20, padding=15)
 
-        panic = self.grid.put(0,0, 2,2, Button("PANIC BUTTON", state='disabled', hue=20, sat=.2))
+        panic = self.grid.pack(2,2, Button("PANIC BUTTON", state='disabled', hue=20, sat=.2))
         panic.cmd = lambda e,b: setattr(panic, 'visible', False)
-        self.grid.put(2,0, 2,2, Button("CLICK")).cmd = lambda e,b: setattr(panic, 'state', None)
-        self.grid.put(4,0, 2,2, Button("TOGGLE", toggle=True)).cmd = lambda e,b: print("toggle state:", b.active)
+        self.grid.pack(2,2, Button("CLICK")).cmd = lambda e,b: setattr(panic, 'state', None)
+        self.grid.pack(2,2, Button("TOGGLE", toggle=True)).cmd = lambda e,b: print("toggle state:", b.active)
 
         self.grid.put(0,2, 12,1, Label("COLORS", valign=1, bar=3))
         for i, name in enumerate("RED YELLOW GREEN CYAN BLUE MAGENTA".split()):

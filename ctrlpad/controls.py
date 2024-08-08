@@ -178,24 +178,39 @@ class GridLayout(Control):
         """
         super().__init__(**style)
         self.min_cells = (min_cells_x, min_cells_y)
+        self.locate(0, 0)
 
     def put(self, grid_pos_x: int, grid_pos_y: int, grid_size_x: int, grid_size_y: int, control: Control):
-        "put a child control on the grid at a specific position with a specific size"
+        "put a child control on the grid, with a specific size, at a specific position "
         self.children.append(control)
         control.grid_start_x = grid_pos_x
         control.grid_start_y = grid_pos_y
         control.grid_end_x = grid_pos_x + grid_size_x
         control.grid_end_y = grid_pos_y + grid_size_y
+        self.next_grid_x = control.grid_end_x
+        self.next_grid_y = control.grid_start_y
         return control
 
-    def do_layout(self, env: ControlEnvironment, x0: int, y0: int, x1: int, y1: int):
-        if not self.children: return
+    def pack(self, grid_size_x: int, grid_size_y: int, control: Control):
+        "put a child control on the grid, with a specific size, next to the previously put() or pack()ed child"
+        return self.put(self.next_grid_x, self.next_grid_y, grid_size_x, grid_size_y, control)
 
-        # determine grid size
+    def locate(self, grid_pos_x: int, grid_pos_y: int):
+        "set the position of the next control to be pack()ed"
+        self.next_grid_x = grid_pos_x
+        self.next_grid_y = grid_pos_y
+
+    def get_grid_max(self):
+        "determine current grid size"
         maxx, maxy = self.min_cells
         for child in self.children:
             maxx = max(maxx, child.grid_end_x)
             maxy = max(maxy, child.grid_end_y)
+        return (maxx, maxy)
+
+    def do_layout(self, env: ControlEnvironment, x0: int, y0: int, x1: int, y1: int):
+        if not self.children: return
+        maxx, maxy = self.get_grid_max()
 
         # compute cell size (cs*) and actual grid start
         margin  = env.scale(self.get('margin',  0))
