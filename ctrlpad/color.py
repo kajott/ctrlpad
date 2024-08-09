@@ -77,6 +77,11 @@ def lerp(a, b, t: float):
         return tuple((xa + (xb - xa) * t) for xa, xb in zip(a, b))
 
 
+def scale(c, t: float):
+    "scale all RGB components (but not alpha) by t, to darken / brighten"
+    return (c[0]*t, c[1]*t, c[2]*t, c[3])
+
+
 def tohex(c):
     "convert a color tuple back to a hexadecimal representation"
     return '#' + ''.join("{:02x}".format(min(255, max(0, round(x * 255.0)))) for x in c)

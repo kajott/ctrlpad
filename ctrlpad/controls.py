@@ -7,9 +7,11 @@ from . import color
 __all__ = [
     'ControlEnvironment',
     'Control', 'TextControl',
-    'GridLayout',
+    'GridLayout', 'TabSheet',
     'Label', 'Button'
 ]
+
+log = logging.getLogger("controls")
 
 ###############################################################################
 # MARK: ControlEnvironemnt
@@ -189,6 +191,7 @@ class GridLayout(Control):
         control.grid_end_y = grid_pos_y + grid_size_y
         self.next_grid_x = control.grid_end_x
         self.next_grid_y = control.grid_start_y
+        self.invalidate_layout()
         return control
 
     def pack(self, grid_size_x: int, grid_size_y: int, control: Control):
@@ -213,8 +216,8 @@ class GridLayout(Control):
         maxx, maxy = self.get_grid_max()
 
         # compute cell size (cs*) and actual grid start
-        margin  = env.scale(self.get('margin',  0))
-        padding = env.scale(self.get('padding', 0))
+        margin  = env.scale(self.get('margin',  20))
+        padding = env.scale(self.get('padding', 15))
         csx = ((x1 - x0) - 2 * margin - (maxx - 1) * padding) // maxx + padding
         csy = ((y1 - y0) - 2 * margin - (maxy - 1) * padding) // maxy + padding
         if not self.get('rectangular'):
@@ -229,6 +232,190 @@ class GridLayout(Control):
                 y0 + csy * child.grid_start_y,
                 x0 + csx * child.grid_end_x - padding,
                 y0 + csy * child.grid_end_y - padding)
+
+###############################################################################
+# MARK: TabSheet
+
+class TabSheet(Control):
+    """
+    A control that hosts multiple child controls that can be toggled between
+    with buttons.
+    """
+    # Note: this sets a few attributes and styles in the child controls for
+    #       internal use; all of those are prefixed with 'tab_'
+
+    def __init__(self, toplevel=False, **style):
+        """
+        Instantiate the button with the following (mostly optional) parameters:
+        [* = can be different for each control state; ~ = in abstract size units]
+        - toplevel = False (default) for a normal control,
+                     True for a toplevel control that fills the entire screen
+                     and hence doesn't need outside borders
+        - size   ~ = text size for the tab labels
+        - padx   ~ = horizontal internal padding in the tab buttons
+        - pady   ~ = vertical internal padding in the tab buttons
+        - width  ~ = width of the outline borders around the tab buttons
+        - radius ~ = rounding radius of the tab buttons
+        - fading   = brightness factor for inactive tabs (0..1)
+        """
+        super().__init__(**style)
+        self.toplevel = toplevel
+
+    def add_page(self, control: Control, title: str, **style):
+        """
+        Add 'control' as a new page, titled with 'title'. The following style
+        parameters are available: [~ = in abstract size units]
+        - outline  = outline color
+        - color    = tab button title text color
+        - fill1    = fill color of the tab button and top end of the page
+        - fill2    = fill color of the bottom end of the page (none = no gradient)
+        - font     = font of the tab button title
+        - label        = large background label text
+        - label_color  = color of the label text
+        - label_font   = font of the label text
+        - label_size ~ = text size of the label text (shrunk automatically)
+        - label_padx ~ = horizontal padding of the label text
+        - label_pady ~ = vertical padding of the label text
+        """
+        if control.visible and any(c.visible for c in self.children):
+            control.visible = False
+        self.children.append(control)
+        control.tab_title = title
+        for k, v in style.items():
+            control.style['tab_' + k] = v
+        self.invalidate_layout()
+        return control
+
+    def do_layout(self, env: ControlEnvironment, x0: int, y0: int, x1: int, y1: int):
+        # vertical and "global" geometry
+        raw_text_size = self.get('size', 50)
+        padx = env.scale(self.get('padx', raw_text_size))
+        pady = env.scale(self.get('pady', raw_text_size // 2))
+        self.button_outline = env.scale(self.get('width', 3))
+        self.button_radius = env.scale(self.get('radius', 25))
+        self.button_text_size = env.scale(raw_text_size)
+        self.button_text_y = y0 + self.button_outline + pady
+        self.bar_y0 = self.button_text_y + self.button_text_size + pady
+        self.bar_y1 = self.bar_y0 + self.button_outline
+        self.button_y1 = self.bar_y1 + self.button_radius + self.button_outline
+        self.page_x0 = x0 + (0 if self.toplevel else self.button_outline)
+        self.page_x1 = x1 - (0 if self.toplevel else self.button_outline)
+        self.page_y1 = y1 - (0 if self.toplevel else self.button_outline)
+        page_width = self.page_x1 - self.page_x0
+        page_height = self.page_y1 - self.bar_y1
+
+        # horizontal geometry and per-page stuff
+        fading = self.get('fading', 0.5)
+        bx = x0
+        for page in self.children:
+            env.renderer.set_font(page.get('tab_font'))
+            page.tab_button_x0 = bx
+            page.tab_button_text_x = bx + self.button_outline + padx
+            bx = page.tab_button_text_x + env.renderer.text_line_width(page.tab_title, self.button_text_size) + padx
+            page.tab_button_x1 = bx + self.button_outline
+
+            # colors
+            page.tab_active_outline = color.parse(page.get('tab_outline', "#fff"))
+            page.tab_active_background = color.parse(page.get('tab_fill1', "#345"))
+            page.tab_active_color = color.parse(page.get('tab_color', "#fff"))
+            fill2 = page.get('tab_fill2')
+            page.tab_gradient = color.parse(fill2) if fill2 else page.tab_active_background
+            page.tab_inactive_outline    = color.scale(page.tab_active_outline,    fading)
+            page.tab_inactive_background = color.scale(page.tab_active_background, fading)
+            page.tab_inactive_color      = color.scale(page.tab_active_color,      fading)
+
+            # label stuff
+            label = page.get('tab_label')
+            if label:
+                page.tab_label_font = page.get('tab_label_font', page.get('tab_font'))
+                env.renderer.set_font(page.tab_label_font)
+                raw_text_size = page.get('tab_label_size', 200)
+                lpadx = env.scale(page.get('tab_padx', raw_text_size // 6))
+                lpady = env.scale(page.get('tab_pady', 0))
+                max_height = page_height - 2 * lpady
+                max_width = page_width - 2 * lpadx
+                size = env.scale(raw_text_size)
+                while size > 1:
+                    height = env.renderer.text_line_height(size)
+                    width = env.renderer.text_line_width(label, size)
+                    page.tab_label_x = self.page_x1 - lpadx - width
+                    page.tab_label_y = self.page_y1 - lpady - height
+                    if (width < max_width) and (height < max_height): break
+                    size = min(round(size * 0.9), size - 1)
+                page.tab_label_size = size
+                page.tab_label_color = color.parse(page.get('tab_label_color', "#fff1"))
+            else:
+                page.tab_label_size = 0
+
+        # layout children
+        for page in self.children:
+            page.layout(env, x0, self.bar_y1, x1, y1)
+
+    def _draw_button(self, env: ControlEnvironment, page: Control, y0: int):
+        env.renderer.outline_box(
+            page.tab_button_x0, y0, page.tab_button_x1, self.button_y1, 
+            self.button_outline,
+            page.tab_active_outline    if page.visible else page.tab_inactive_outline,
+            page.tab_active_background if page.visible else page.tab_inactive_background,
+            radius=self.button_radius)
+        env.renderer.set_font(page.get('tab_font'))
+        env.renderer.text_line(
+            page.tab_button_text_x, self.button_text_y,
+            self.button_text_size, page.tab_title,
+            page.tab_active_color      if page.visible else page.tab_inactive_color)
+
+    def do_draw(self, env: ControlEnvironment, x0: int, y0: int, x1: int, y1: int):
+        current_page = None
+        # inactive tab buttons
+        for page in self.children:
+            if not page.visible:
+                self._draw_button(env, page, y0)
+            else:
+                current_page = page
+        if not current_page:
+            return log.warning("no active page in TabSheet")
+        # active tab button
+        self._draw_button(env, current_page, y0)
+        # page outline (if any) - drawn as lines to save on rasterized area
+        if self.button_outline:
+            c = current_page.tab_active_outline
+            if x0 < current_page.tab_button_x0:
+                env.renderer.box(x0, self.bar_y0, current_page.tab_button_x0 + self.button_outline, self.bar_y1, c)
+            if current_page.tab_button_x1 < x1:
+                env.renderer.box(current_page.tab_button_x1 - self.button_outline, self.bar_y0, x1, self.bar_y1, c)
+            env.renderer.box(x0, self.bar_y0, self.page_x0, y1, c)
+            env.renderer.box(self.page_x1, self.bar_y0, x1, y1, c)
+            env.renderer.box(x0, self.page_y1, x1, y1, c)
+        # page background
+        env.renderer.box(
+            self.page_x0, self.bar_y1, self.page_x1, self.page_y1,
+            current_page.tab_active_background, current_page.tab_gradient)
+        # page label
+        if current_page.tab_label_size > 1:
+            env.renderer.set_font(current_page.tab_label_font)
+            env.renderer.text_line(
+                current_page.tab_label_x, current_page.tab_label_y,
+                current_page.tab_label_size, current_page.get('tab_label'),
+                current_page.tab_label_color)
+
+    def on_click(self, env: ControlEnvironment, x: int, y: int):
+        self.click_x, self.click_y = x, y
+        if self.geometry[1] <= y < self.bar_y1:
+            prev_page = next_page = None
+            for page in self.children:
+                if page.visible:
+                    prev_page = page
+                if page.tab_button_x0 <= x < page.tab_button_x1:
+                    next_page = page
+            if next_page:
+                if prev_page: prev_page.visible = False
+                next_page.visible = True
+        else:
+            for child in self.children:
+                x0, y0, x1, y1 = child.geometry
+                if child.visible and (x0 <= x < x1) and (y0 <= y < y1):
+                    self.drag_child = child
+                    child.on_click(env, x, y)
 
 ###############################################################################
 # MARK: Label

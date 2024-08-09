@@ -558,9 +558,12 @@ class Renderer:
         for x0,y0, x1,y1, size, line in lines:
             self.text_line(x0, y0, size, line, color_, color_)
 
-    def text_width(self, text: str, size: float = 1.0):
-        "determine width of a text in the currently selected MSDF font"
+    def text_line_width(self, text: str, size: float = 1.0):
+        "determine width of a text line in the currently selected MSDF font"
         return self.font.width(text, size)
+    def text_line_height(self, size: float = 1.0):
+        "determine height of a text line in the currently selected MSDF font"
+        return self.font.max_height * size
 
 ###############################################################################
 #MARK: font importer
