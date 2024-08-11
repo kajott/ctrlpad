@@ -1,5 +1,3 @@
 **/__pycache__
-SDL2.dll
-*.png
-*.json
+*.dll
 msdf-atlas-gen*

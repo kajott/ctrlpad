@@ -14,8 +14,8 @@ from ctrlpad.controls import ControlEnvironment, GridLayout, TabSheet, Label, Bu
 class MyApp(GLAppWindow):
     def on_init(self):
         self.renderer = Renderer()
-        #self.renderer.add_font("segoe")
-        self.renderer.add_font("bahn")
+        #self.renderer.add_font("data/segoe")
+        self.renderer.add_font("data/bahn")
         self.set_cursor(Cursor.Hand)
 
         self.env = ControlEnvironment(self, self.renderer)
