@@ -199,7 +199,7 @@ class GLAppWindow:
                 return prefix + str(i + start)
         return f"?{sym}"
 
-    def __init__(self, width: int, height: int, title: str):
+    def __init__(self, width: int, height: int, title: str, fullscreen: bool = False):
         """create a window and OpenGL context with specified initial size and window title
         @note don't override this; override on_init() instead!"""
         self._lib = None
@@ -232,6 +232,8 @@ class GLAppWindow:
             ctypes.c_char_p(title.encode('utf-8')),
             0x1FFF0000, 0x1FFF0000,  # SDL_WINDOWPOS_UNDEFINED
             width, height,
+            0x3003  # SDL_WINDOW_OPENGL + SDL_WINDOW_FULLSCREEN_DESKTOP + SDL_WINDOW_ALLOW_HIGHDPI
+            if fullscreen else
             0x2022  # SDL_WINDOW_OPENGL + SDL_WINDOW_RESIZABLE + SDL_WINDOW_ALLOW_HIGHDPI
         )
         if not self._win:
@@ -310,6 +312,13 @@ class GLAppWindow:
     def set_title(self, title):
         "set the window title"
         self._lib.SDL_SetWindowTitle(self._win, ctypes.c_char_p(title.encode('utf-8')))
+
+    def show_cursor(self, mode: bool = True):
+        "show (True) or hide (False) the mouse cursor"
+        self._lib.SDL_ShowCursor(1 if mode else 0)
+    def hide_cursor(self):
+        "hide the mouse cursor"
+        self.show_cursor(False)
 
     def set_cursor(self, cursor_id: int):
         "set mouse cursor to one of the system cursors (see Cursor class/enum)"

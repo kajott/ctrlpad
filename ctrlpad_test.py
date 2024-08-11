@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import argparse
 import logging
 
 from ctrlpad.sdl import GLAppWindow, Cursor
@@ -59,4 +60,14 @@ if __name__ == "__main__":
         format='%(asctime)s | %(name)-10s | %(levelname)-8s | %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
     )
-    MyApp(1024, 600, "ControlPad Test App").main_loop()
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-f", "--fullscreen", action='store_true',
+                        help="run in fullscreen mode")
+    parser.add_argument("-c", "--no-cursor", action='store_true',
+                        help="don't show mouse cursor")
+    args = parser.parse_args()
+
+    app = MyApp(1024, 600, "ControlPad Test App", fullscreen=args.fullscreen)
+    if args.no_cursor: app.hide_cursor()
+    app.main_loop()
