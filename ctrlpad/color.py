@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2024 Martin J. Fiedler <keyj@emphy.de>
+# SPDX-License-Identifier: MIT
 """
 Conversion to and operations on color values represented as RGBA 4-tuples
 of normalized floating point sRGB values.
