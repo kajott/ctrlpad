@@ -60,10 +60,9 @@ class MyApp(GLAppWindow):
 if __name__ == "__main__":
     logging.basicConfig(
         level=logging.DEBUG,
-        format='%(asctime)s | %(name)-10s | %(levelname)-8s | %(message)s',
+        format='%(asctime)s | %(name)-20s | %(levelname)-8s | %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
     )
-
     parser = argparse.ArgumentParser()
     parser.add_argument("-f", "--fullscreen", action='store_true',
                         help="run in fullscreen mode")
