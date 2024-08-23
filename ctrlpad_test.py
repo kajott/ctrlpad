@@ -8,7 +8,7 @@ import logging
 from ctrlpad.sdl import GLAppWindow, Cursor
 from ctrlpad.opengl import gl
 from ctrlpad.renderer import Renderer
-from ctrlpad.controls import ControlEnvironment, GridLayout, TabSheet, Label, Button
+from ctrlpad.controls import bind, ControlEnvironment, GridLayout, TabSheet, Label, Button
 
 
 class MyApp(GLAppWindow):
@@ -24,7 +24,10 @@ class MyApp(GLAppWindow):
 
         page = self.toplevel.add_page(GridLayout(8,4), "Page One", label="WELCOME")
         panic = page.pack(2,2, Button("PANIC BUTTON", state='disabled', hue=20, sat=.2))
-        panic.cmd = lambda e,b: self.refresh.cancel()
+        @bind(panic)
+        def cmd(e,b):
+            self.refresh.cancel()
+            panic.visible = False
         page.pack(2,2, Button("CLICK")).cmd = lambda e,b: setattr(panic, 'state', None)
         page.pack(2,2, Button("TOGGLE", toggle=True)).cmd = lambda e,b: print("toggle state:", b.active)
 

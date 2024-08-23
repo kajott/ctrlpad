@@ -8,13 +8,27 @@ from .renderer import Renderer
 from . import color
 
 __all__ = [
+    'bind',
     'ControlEnvironment',
     'Control', 'TextControl',
     'GridLayout', 'TabSheet',
-    'Label', 'Button'
+    'Label', 'Button',
 ]
 
 log = logging.getLogger("controls")
+
+def bind(control):
+    """
+    Function decorator to conveniently bind events to controls.
+    The decorator parameter is the control to bind the event to,
+    the function itself shall be named after the member function to set.
+    Example:
+        button = Button("example")
+        @bind(button)
+        def cmd(env, btn):
+            print("button has been clicked")
+    """
+    return lambda func: setattr(control, func.__name__, func)
 
 ###############################################################################
 # MARK: ControlEnvironemnt
