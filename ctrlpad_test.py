@@ -68,8 +68,10 @@ if __name__ == "__main__":
                         help="run in fullscreen mode")
     parser.add_argument("-c", "--no-cursor", action='store_true',
                         help="don't show mouse cursor")
+    parser.add_argument("-r", "--fps-limit", type=float, default=0,
+                        help="set frame rate limit")
     args = parser.parse_args()
 
-    app = MyApp(1024, 600, "ControlPad Test App", fullscreen=args.fullscreen)
+    app = MyApp(1024, 600, "ControlPad Test App", fullscreen=args.fullscreen, fps_limit=args.fps_limit)
     if args.no_cursor: app.hide_cursor()
     app.main_loop()

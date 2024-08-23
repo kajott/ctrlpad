@@ -4,8 +4,10 @@
 import ctypes
 import ctypes.util
 import sys
+import time
 if sys.platform == 'win32':
     import _ctypes
+
 from .opengl import gl
 
 __all__ = ['GLAppWindow', 'Button', 'Mod', 'Cursor']
@@ -202,7 +204,7 @@ class GLAppWindow:
                 return prefix + str(i + start)
         return f"?{sym}"
 
-    def __init__(self, width: int, height: int, title: str, fullscreen: bool = False):
+    def __init__(self, width: int, height: int, title: str, fullscreen: bool = False, fps_limit: float = 0.0):
         """create a window and OpenGL context with specified initial size and window title
         @note don't override this; override on_init() instead!"""
         self._lib = None
@@ -246,12 +248,14 @@ class GLAppWindow:
             raise RuntimeError("failed to create context")
         self._lib.SDL_GL_SetSwapInterval(1)
         self.active = True
+        self.fps_limit = fps_limit
         self.requested_frames = 2
         gl._load(self._lib.SDL_GL_GetProcAddress)
         vp = (ctypes.c_int * 4)()
         gl.GetIntegerv(gl.VIEWPORT, vp)
         self.vp_width, self.vp_height = vp[2:]
         self.on_init()
+        self.next_frame_at = 0
 
     def request_frames(self, nframes=1):
         "request to render at least 'nframes' frames before idling"
@@ -310,11 +314,21 @@ class GLAppWindow:
                 self.handle_events()
             if not self.active: break
             self.on_draw()
+            if self.fps_limit > 0.0:
+                now = time.monotonic()
+                if now < self.next_frame_at:
+                    time.sleep(self.next_frame_at - now)
+                    now = time.monotonic()
+                self.next_frame_at = now + 1.0 / self.fps_limit - 0.001
             self._lib.SDL_GL_SwapWindow(self._win)
 
-    def set_title(self, title):
+    def set_title(self, title: str):
         "set the window title"
         self._lib.SDL_SetWindowTitle(self._win, ctypes.c_char_p(title.encode('utf-8')))
+
+    def set_fps_limit(self, fps: float = 0.0):
+        "set or clear the frame rate limit"
+        self.fps_limit = float(fps)
 
     def show_cursor(self, mode: bool = True):
         "show (True) or hide (False) the mouse cursor"
