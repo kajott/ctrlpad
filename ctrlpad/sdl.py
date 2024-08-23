@@ -250,12 +250,31 @@ class GLAppWindow:
         self.active = True
         self.fps_limit = fps_limit
         self.requested_frames = 2
+        self.refresh_tokens = []
+        self.refresh_ms = 0
         gl._load(self._lib.SDL_GL_GetProcAddress)
         vp = (ctypes.c_int * 4)()
         gl.GetIntegerv(gl.VIEWPORT, vp)
         self.vp_width, self.vp_height = vp[2:]
         self.on_init()
         self.next_frame_at = 0
+
+    def _on_refresh_token_change(self):
+        try:
+            self.refresh_ms = round(min(t.interval for t in self.refresh_tokens if t.interval > 0) * 1000)
+        except ValueError:
+            self.refresh_ms = 0
+
+    def get_refresh_token(self, interval: float) -> 'RefreshToken':
+        """
+        request refreshing the screen every 'interval' seconds;
+        returns a token (class instance) that needs to be kept around
+        in order to call .cancel() on it
+        """
+        token = RefreshToken(self, interval)
+        self.refresh_tokens.append(token)
+        self._on_refresh_token_change()
+        return token
 
     def request_frames(self, nframes=1):
         "request to render at least 'nframes' frames before idling"
@@ -264,7 +283,13 @@ class GLAppWindow:
     def handle_event(self, wait=False):
         "handle a single SDL event, optionally with waiting"
         ev = SDL_Event()
-        if not (self._lib.SDL_WaitEvent if wait else self._lib.SDL_PollEvent)(ctypes.byref(ev)):
+        if not wait:
+            res = self._lib.SDL_PollEvent(ctypes.byref(ev))
+        elif self.refresh_ms:
+            res = self._lib.SDL_WaitEventTimeout(ctypes.byref(ev), self.refresh_ms)
+        else:
+            res = self._lib.SDL_WaitEvent(ctypes.byref(ev))
+        if not res:
             return False
         if ev.type == 0x0100:  # SDL_QUIT
             self.quit()
@@ -321,6 +346,7 @@ class GLAppWindow:
                     now = time.monotonic()
                 self.next_frame_at = now + 1.0 / self.fps_limit - 0.001
             self._lib.SDL_GL_SwapWindow(self._win)
+            print("--frame--")
 
     def set_title(self, title: str):
         "set the window title"
@@ -411,3 +437,30 @@ class GLAppWindow:
     def on_drop(self, files):
         "receive a list of files dropped onto the window"
         pass
+
+class RefreshToken:
+    "a 'token' that, while alive, causes the window to refresh periodically"
+
+    def __init__(self, parent: GLAppWindow, interval: float):
+        "constructor - do not call direcly; use GLAppWindow.get_refresh_token()"
+        self.parent = parent
+        self.set_interval(interval)
+
+    def set_interval(self, interval: float):
+        "change the refresh interval of this token"
+        self.interval = interval
+        if self.parent:
+            self.parent._on_refresh_token_change()
+
+    def cancel(self):
+        "cancel the token; don't refresh any longer"
+        if self.parent:
+            try:
+                self.parent.refresh_tokens.remove(self)
+            except ValueError:
+                pass
+            self.parent._on_refresh_token_change()
+        self.parent = False
+
+    def __del__(self):
+        self.cancel()

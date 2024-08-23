@@ -20,10 +20,11 @@ class MyApp(GLAppWindow):
 
         self.env = ControlEnvironment(self, self.renderer)
         self.toplevel = TabSheet(toplevel=True)
+        self.refresh = self.get_refresh_token(0.5)
 
         page = self.toplevel.add_page(GridLayout(8,4), "Page One", label="WELCOME")
         panic = page.pack(2,2, Button("PANIC BUTTON", state='disabled', hue=20, sat=.2))
-        panic.cmd = lambda e,b: setattr(panic, 'visible', False)
+        panic.cmd = lambda e,b: self.refresh.cancel()
         page.pack(2,2, Button("CLICK")).cmd = lambda e,b: setattr(panic, 'state', None)
         page.pack(2,2, Button("TOGGLE", toggle=True)).cmd = lambda e,b: print("toggle state:", b.active)
 
