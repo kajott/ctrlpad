@@ -247,23 +247,23 @@ class GLAppWindow:
         if not self._ctx:
             raise RuntimeError("failed to create context")
         self._lib.SDL_GL_SetSwapInterval(1)
-        self.active = True
-        self.fps_limit = fps_limit
-        self.requested_frames = 2
-        self.refresh_tokens = []
-        self.refresh_ms = 0
+        self._active = True
+        self._fps_limit = fps_limit
+        self._requested_frames = 2
+        self._refresh_tokens = []
+        self._refresh_ms = 0
+        self._next_frame_at = 0
         gl._load(self._lib.SDL_GL_GetProcAddress)
         vp = (ctypes.c_int * 4)()
         gl.GetIntegerv(gl.VIEWPORT, vp)
         self.vp_width, self.vp_height = vp[2:]
         self.on_init()
-        self.next_frame_at = 0
 
     def _on_refresh_token_change(self):
         try:
-            self.refresh_ms = round(min(t.interval for t in self.refresh_tokens if t.interval > 0) * 1000)
+            self._refresh_ms = round(min(t.interval for t in self._refresh_tokens if t.interval > 0) * 1000)
         except ValueError:
-            self.refresh_ms = 0
+            self._refresh_ms = 0
 
     def get_refresh_token(self, interval: float) -> 'RefreshToken':
         """
@@ -272,21 +272,21 @@ class GLAppWindow:
         in order to call .cancel() on it
         """
         token = RefreshToken(self, interval)
-        self.refresh_tokens.append(token)
+        self._refresh_tokens.append(token)
         self._on_refresh_token_change()
         return token
 
     def request_frames(self, nframes=1):
         "request to render at least 'nframes' frames before idling"
-        self.requested_frames = max(self.requested_frames, nframes)
+        self._requested_frames = max(self._requested_frames, nframes)
 
     def handle_event(self, wait=False):
         "handle a single SDL event, optionally with waiting"
         ev = SDL_Event()
         if not wait:
             res = self._lib.SDL_PollEvent(ctypes.byref(ev))
-        elif self.refresh_ms:
-            res = self._lib.SDL_WaitEventTimeout(ctypes.byref(ev), self.refresh_ms)
+        elif self._refresh_ms:
+            res = self._lib.SDL_WaitEventTimeout(ctypes.byref(ev), self._refresh_ms)
         else:
             res = self._lib.SDL_WaitEvent(ctypes.byref(ev))
         if not res:
@@ -330,21 +330,21 @@ class GLAppWindow:
 
     def main_loop(self):
         "run the application's main loop until it is quit"
-        while self.active:
+        while self._active:
             any_events = self.handle_events()
-            if self.requested_frames >= 0:
-                self.requested_frames -= 1
+            if self._requested_frames >= 0:
+                self._requested_frames -= 1
             elif not any_events:
                 self.handle_event(True)
                 self.handle_events()
-            if not self.active: break
+            if not self._active: break
             self.on_draw()
-            if self.fps_limit > 0.0:
+            if self._fps_limit > 0.0:
                 now = time.monotonic()
-                if now < self.next_frame_at:
-                    time.sleep(self.next_frame_at - now)
+                if now < self._next_frame_at:
+                    time.sleep(self._next_frame_at - now)
                     now = time.monotonic()
-                self.next_frame_at = now + 1.0 / self.fps_limit - 0.001
+                self._next_frame_at = now + 1.0 / self._fps_limit - 0.001
             self._lib.SDL_GL_SwapWindow(self._win)
             print("--frame--")
 
@@ -354,7 +354,7 @@ class GLAppWindow:
 
     def set_fps_limit(self, fps: float = 0.0):
         "set or clear the frame rate limit"
-        self.fps_limit = float(fps)
+        self._fps_limit = float(fps)
 
     def show_cursor(self, mode: bool = True):
         "show (True) or hide (False) the mouse cursor"
@@ -386,7 +386,7 @@ class GLAppWindow:
 
     def quit(self):
         "quit the application after handling events"
-        self.active = False
+        self._active = False
         self.on_quit()
 
     def __del__(self):
@@ -456,7 +456,7 @@ class RefreshToken:
         "cancel the token; don't refresh any longer"
         if self.parent:
             try:
-                self.parent.refresh_tokens.remove(self)
+                self.parent._refresh_tokens.remove(self)
             except ValueError:
                 pass
             self.parent._on_refresh_token_change()
