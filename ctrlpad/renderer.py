@@ -491,7 +491,7 @@ class Renderer:
         start = end = 0
         for i, c in enumerate(text):
             if c == '\n':
-                yield check_width(text[start:i-1])
+                yield check_width(text[start:i])
                 start = end = i+1
             elif not c.isalnum():
                 if check_width(text[start:i+1])[1] <= width:

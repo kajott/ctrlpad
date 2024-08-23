@@ -7,6 +7,14 @@ import socket
 import threading
 import time
 
+from .controls import bind, ControlEnvironment, Control, GridLayout, TabSheet, Button, Label
+
+__all__ = [
+    'Crossbar',
+    'LightwareCrossbar',
+    'ExtronCrossbar',
+]
+
 ###############################################################################
 
 class Crossbar:
@@ -35,7 +43,7 @@ class Crossbar:
         'ties' is guaranteed to be non-empty, and each entry is guaranteed to
         be valid (at least one output, no invalid input/output numbers)
         """
-        pass
+        time.sleep(0.02)  # act as if tying takes some time
 
     @staticmethod
     def flatten_ties(ties):
@@ -64,7 +72,7 @@ class Crossbar:
             time.sleep(0.05)
         return self.result
 
-    def geometry_known(self):
+    def geometry_known(self) -> bool:
         "query if the number of inputs and outputs is already known"
         return bool(self.num_inputs and self.num_outputs)
 
@@ -79,6 +87,97 @@ class Crossbar:
         if isinstance(s, bytes): s = s.decode('ascii', 'replace')
         if m := re.search(r'(\d+)[xX](\d+)', s):
             self.set_geometry(*map(int, m.groups()))
+
+###############################################################################
+
+    @staticmethod
+    def schemed_name(scheme: str, num: int, names=None, format=None) -> str:
+        if   scheme == '1': s_num = str(num + 1)
+        elif scheme == 'A': s_num = chr(num + 65)
+        elif scheme == 'a': s_num = chr(num + 97)
+        else: s_num = str(num)
+        if names and isinstance(names, dict):
+            name = names.get(s_num)
+        elif names and (0 <= num < len(names)):
+            name = names[num]
+        else:
+            name = None
+        if not name:
+            return s_num
+        if format is None:
+            return name
+        if len(format) & 1:
+            return format + s_num + format + "\n" + name
+        half = len(format) // 2
+        return format[:half] + s_num + format[half:] + "\n" + name
+
+    def create_ui(self, input_scheme: str = '1', output_scheme: str = '1',
+                        input_names=None,        output_names=None,
+                        input_format=None,       output_format=None):
+        """
+        Create a GridLayout for controlling the crossbar.
+
+        Optional arguments:
+        - input_scheme: the crossbar's input naming scheme ('1'=numbers, 'A'=letters)
+        - input_names: user-assigned names/labels for the inputs;
+                       either a list or tuple, or a str->str dictionary
+        - input_format: if a name has been assigned and this is not None,
+                        the number or letter of the input is displayed as well;
+                        if the format string has an even length, the first half
+                        will be prepended to the number/letter, and the second
+                        half will be appended; if the format string length is
+                        odd, it will be prepended *and* appended
+        - output_scheme: as input_scheme, but for the outputs
+        - output_names:  as input_names,  but for the outputs
+        - output_format: as input_format, but for the outputs
+        """
+        page = GridLayout()
+
+        page.put(0,0, self.num_inputs * 2, 1, Label("INPUTS", valign=1, bar=3))
+        page.locate(0,1)
+        self.btn_in = [page.pack(2,2,
+            Button(self.schemed_name(input_scheme, i, input_names, input_format),
+                   manual=True, cmd=self._on_in_btn_click))
+            for i in range(self.num_inputs)]
+
+        page.put(0,3, self.num_outputs * 2, 1, Label("OUTPUTS", valign=1, bar=3))
+        page.locate(0,4)
+        self.btn_out = [page.pack(2,2,
+            Button(self.schemed_name(output_scheme, i, output_names, output_format),
+                   toggle=True))
+            for i in range(self.num_outputs)]
+
+        nbuttons = max(self.num_inputs, self.num_outputs)
+        page.put(nbuttons * 2 - 4, 6, 4,1, Label("CONTROL", valign=1, bar=3))
+        page.put(nbuttons * 2 - 4, 7, 2,2, Button("CANCEL", hue=30, sat=0.1, cmd=self._on_cancel_click))
+        page.put(nbuttons * 2 - 2, 7, 2,2, Button("TAKE", hue=142, sat=0.1, cmd=self._on_take_click))
+        return page
+
+    def add_ui_page(self, parent: TabSheet, title: str = None, *args, **kwargs):
+        """
+        add a page to a TabSheet for controlling the crossbar;
+        uses the same options as create_ui()
+        """
+        return parent.add_page(self.create_ui(*args, **kwargs), title or self.log.name.split('-', 1)[0])
+
+    def _clear_buttons(self):
+        for btn in self.btn_in:  btn.state = None
+        for btn in self.btn_out: btn.state = None
+
+    def _on_in_btn_click(self, env: ControlEnvironment, btn: Control):
+        was_active = btn.state
+        self._clear_buttons()
+        if not was_active: btn.state = 'active'
+
+    def _on_cancel_click(self, env: ControlEnvironment, btn: Control):
+        self._clear_buttons()
+
+    def _on_take_click(self, env: ControlEnvironment, btn: Control):
+        tie = [i for i, btn in enumerate(self.btn_in) if btn.state]
+        if len(tie) == 1:
+            tie += [i for i, btn in enumerate(self.btn_out) if btn.state]
+            self.tie(tie)
+        self._clear_buttons()
 
 ###############################################################################
 

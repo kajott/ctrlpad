@@ -346,7 +346,6 @@ class GLAppWindow:
                     now = time.monotonic()
                 self._next_frame_at = now + 1.0 / self._fps_limit - 0.001
             self._lib.SDL_GL_SwapWindow(self._win)
-            print("--frame--")
 
     def set_title(self, title: str):
         "set the window title"

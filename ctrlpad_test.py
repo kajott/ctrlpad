@@ -9,6 +9,7 @@ from ctrlpad.sdl import GLAppWindow, Cursor
 from ctrlpad.opengl import gl
 from ctrlpad.renderer import Renderer
 from ctrlpad.controls import bind, ControlEnvironment, GridLayout, TabSheet, Label, Button
+from ctrlpad.crossbar import Crossbar
 
 
 class MyApp(GLAppWindow):
@@ -37,6 +38,23 @@ class MyApp(GLAppWindow):
             hue, sat = 30 + i * 60, 0.1
             page.put(i*2,1, 2,2, Button(name, hue=hue, sat=sat, toggle=True))
             page.put(i*2,3, 1,1, Button(name[0], hue=hue, sat=sat, state='disabled'))
+
+        self.xbar = Crossbar(8, 8)
+        # https://keyj.emphy.de/photos/deadline2023/dl23_videosetup.png
+        self.xbar.add_ui_page(self.toplevel, input_names={
+            '1': "ATEM OUT 2",
+            '2': "Stream Output",
+            '3': "FOH HDMI",
+            '4': "Old school",
+            '5': "Compo1\n",
+            '6': "Compo2\n",
+            '7': "Screens\n",
+            '8': "n/c\n"
+        }, output_names=[
+            "ATEM IN 1", "ATEM IN 2", "ATEM IN 3", "Stream Team",
+            "Compo1 Monitor", "Compo2 Monitor",
+            "Main Screen", "Bar Screen"
+        ], input_format="[]", output_format="~")
 
         self.toplevel.layout(self.env, 0,0, self.vp_width, self.vp_height)
 
