@@ -574,21 +574,83 @@ class Renderer:
 def PrepareFont(name, fontfile=None, msdf_atlas_gen=None, size=32):
     import re
     import subprocess
-    import tempfile
+    import sys
+
+    # resolve font file name
     if not fontfile:
-        fontfile = name.capitalize()
+        fontfile = os.path.basename(name).capitalize()
     if not os.path.isfile(fontfile):
-        res = subprocess.run(["fc-match", "-v", fontfile], capture_output=True)
-        m = re.search(r'file: "(.*?)"', res.stdout.decode(errors='replace'))
-        fontfile = m.group(1)
-        assert fontfile, "no font file found"
+        if sys.platform == 'win32':
+            import winreg
+            match = fontfile.lower()
+            fontfile = None
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts") as key:
+                i = 0
+                while True:
+                    try: k, v, t = winreg.EnumValue(key, i)
+                    except OSError: break
+                    i += 1
+                    if match in k.lower():
+                        fontfile = os.path.join(os.path.join(os.getenv("SystemRoot"), "Fonts"), v)
+                        break
+        else:
+            for s in (" Bold Italic", " Bold", " Italic"):
+                if fontfile.lower().endswith(s.lower()):
+                    fontfile = fontfile[:-len(s)] + "style:" + s.replace(' ', '')
+                    break
+            res = subprocess.run(["fc-match", "-v", fontfile], capture_output=True)
+            m = re.search(r'file: "(.*?)"', res.stdout.decode(errors='replace'))
+            fontfile = m.group(1)
+        assert fontfile, "no matching font file found"
+        print("found matching font file:", fontfile)
+
+    # provide msdf-atlas-gen
     if not msdf_atlas_gen:
         import shutil
         msdf_atlas_gen = shutil.which("msdf-atlas-gen")
+        if not msdf_atlas_gen:
+            repo = "https://github.com/Chlumsky/msdf-atlas-gen"
+            if sys.platform == "win32":
+                url = repo + "/releases/download/v1.3/msdf-atlas-gen-1.3-win64.zip"
+                print("downloading msdf-atlas-gen from", url, "...")
+                import io
+                import urllib.request
+                import zipfile
+                zipbuf = io.BytesIO()
+                with urllib.request.urlopen(url) as f:
+                    zipbuf.write(f.read())
+                msdf_atlas_gen = "msdf-atlas-gen.exe"
+                with zipfile.ZipFile(zipbuf, 'r') as z:
+                    for f in z.infolist():
+                        if os.path.basename(f.filename) == msdf_atlas_gen:
+                            with z.open(f, 'r') as f_in, open(msdf_atlas_gen, 'wb') as f_out:
+                                f_out.write(f_in.read())
+            else:
+                srcdir = repo.rstrip('/').rsplit('/', 1)[-1]
+                if not os.path.isdir(srcdir):
+                    print("building msdf-atlas-gen from sources at", repo, "...")
+                    subprocess.run(["git", "clone", "--recursive", repo], check=True)
+                builddir = os.path.join(srcdir, "_build")
+                if not os.path.isfile(os.path.join(builddir, "Makefile")):
+                    subprocess.run(["cmake", "-S", srcdir, "-B", builddir,
+                                    "-DCMAKE_BUILD_TYPE=Release",
+                                    "-DMSDFGEN_DISABLE_SVG=1",
+                                    "-DMSDF_ATLAS_BUILD_STANDALONE=1",
+                                    "-DMSDF_ATLAS_NO_ARTERY_FONT=1",
+                                    "-DMSDF_ATLAS_USE_SKIA=0",
+                                    "-DMSDF_ATLAS_USE_VCPKG=0"], check=True)
+                msdf_atlas_gen = os.path.join(builddir, "bin/msdf-atlas-gen")
+                if not os.access(msdf_atlas_gen, os.X_OK):
+                    subprocess.run(["cmake", "--build", builddir], check=True)
+        if msdf_atlas_gen and not(os.path.isfile(msdf_atlas_gen)):
+            msdf_atlas_gen = None
         assert msdf_atlas_gen, "msdf-atlas-gen not found"
+        print("msdf-atlas-gen found:", msdf_atlas_gen)
+
+    # actually run the generator
     subprocess.run([msdf_atlas_gen,
         "-font", fontfile,
-        "-chars", "[0x20, 0x7E], [0xA0, 0xFF], 0xFFFD",
+        "-chars", "[0x20, 0x7E], [0xA0, 0xFF], [0x2010, 0x205E], [0x2199, 0x21FF], [0x2300, 0x232B], [0x23CE, 0x23FF], [0x25A0, 0x25FF], [0x2600, 0x263C], [0x2700, 0x27BF], 0xFFFD",
         "-fontname", os.path.basename(name),
         "-type", "msdf",
         "-size", str(size),
@@ -604,7 +666,7 @@ if __name__ == "__main__":
     mkfont.add_argument("font_name",
                         help="name of the font and the output files", nargs=1)
     mkfont.add_argument("-i", "--infile", metavar="input.ttf",
-                        help="input font file name, or fontconfig spec (e.g. 'Arial:style=Bold')")
+                        help="input font file name, or font name (e.g. 'Arial Bold')")
     mkfont.add_argument("-p", "--prog", metavar="PATH",
                         help="specify full path to msdf-atlas-gen(.exe); get it from https://github.com/Chlumsky/msdf-atlas-gen")
     mkfont.add_argument("-s", "--size", metavar="PIXELS", type=int, default=32,

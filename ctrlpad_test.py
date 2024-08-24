@@ -54,7 +54,7 @@ class MyApp(GLAppWindow):
             "ATEM IN 1", "ATEM IN 2", "ATEM IN 3", "Stream Team",
             "Compo1 Monitor", "Compo2 Monitor",
             "Main Screen", "Bar Screen"
-        ], input_format="[]", output_format="~")
+        ], input_format="\u203a\u2039", output_format="\u2039\u203a")
 
         self.toplevel.layout(self.env, 0,0, self.vp_width, self.vp_height)
 
