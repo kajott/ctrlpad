@@ -20,8 +20,8 @@ class MyApp(GLAppWindow):
 
     def on_init(self):
         self.renderer = Renderer()
-        #self.renderer.add_font("data/segoe")
         self.renderer.add_font("data/bahn")
+        self.renderer.add_font("data/symbol")
         self.set_cursor(Cursor.Hand)
         self.quit_timeout = None
 
@@ -37,6 +37,15 @@ class MyApp(GLAppWindow):
             panic.visible = False
         page.pack(2,2, Button("CLICK")).cmd = lambda e,b: setattr(panic, 'state', None)
         page.pack(2,2, Button("TOGGLE", toggle=True)).cmd = lambda e,b: print("toggle state:", b.active)
+        page.locate(8,3)
+        page.pack(1,1, Button("\u23ee", font="symbol"))  # prev
+        page.pack(1,1, Button("\u23ea", font="symbol"))  # rewind
+        page.pack(1,1, Button("\u23f5", font="symbol"))  # play
+        page.pack(1,1, Button("\u23f8", font="symbol"))  # pause
+        page.pack(1,1, Button("\u23f9", font="symbol"))  # stop
+        page.pack(1,1, Button("\u23cf", font="symbol"))  # eject
+        page.pack(1,1, Button("\u23e9", font="symbol"))  # f.fwd
+        page.pack(1,1, Button("\u23ed", font="symbol"))  # next
 
         page = self.toplevel.add_page(GridLayout(16,8), "Colors", label="COLORFUL")
         page.put(0,0, 12,1, Label("COLORS", valign=1, bar=3))

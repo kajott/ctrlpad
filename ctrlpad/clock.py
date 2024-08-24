@@ -48,7 +48,7 @@ class Clock(Control):
     def do_layout(self, env: ControlEnvironment, x0: int, y0: int, x1: int, y1: int):
         # colors
         c = color.parse(self.get('color', "f30"))
-        self.dot_colors = [color.alpha(c, self.get('ambient', 0.2)), c]
+        self.dot_colors = [color.alpha(c, self.get('ambient', 0.15)), c]
 
         # overall layout
         cx, cy = (x0 + x1) * 0.5, (y0 + y1) * 0.5
