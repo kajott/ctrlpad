@@ -169,7 +169,7 @@ class Control:
 
 class TextControl(Control):
     "base class for controls having a text"
-    def __init__(self, text, **style):
+    def __init__(self, text: str, **style):
         super().__init__(**style)
         self.text = text
 
@@ -253,7 +253,7 @@ class GridLayout(Control):
 ###############################################################################
 # MARK: TabSheet
 
-class TabSheet(Control):
+class TabSheet(TextControl):
     """
     A control that hosts multiple child controls that can be toggled between
     with buttons.
@@ -261,13 +261,16 @@ class TabSheet(Control):
     # Note: this sets a few attributes and styles in the child controls for
     #       internal use; all of those are prefixed with 'tab_'
 
-    def __init__(self, toplevel=False, **style):
+    def __init__(self, toplevel=False, text=None, **style):
         """
         Instantiate the button with the following (mostly optional) parameters:
         [* = can be different for each control state; ~ = in abstract size units]
         - toplevel = False (default) for a normal control,
                      True for a toplevel control that fills the entire screen
                      and hence doesn't need outside borders
+        - text     = text to display at the upper-right edge
+        - font     = font of the text on the upper-right edge
+        - color    = color of the text on the upper-right edge
         - size   ~ = text size for the tab labels
         - padx   ~ = horizontal internal padding in the tab buttons
         - pady   ~ = vertical internal padding in the tab buttons
@@ -275,7 +278,7 @@ class TabSheet(Control):
         - radius ~ = rounding radius of the tab buttons
         - fading   = brightness factor for inactive tabs (0..1)
         """
-        super().__init__(**style)
+        super().__init__(text, **style)
         self.toplevel = toplevel
 
     def add_page(self, control: Control, title: str, **style):
@@ -363,6 +366,10 @@ class TabSheet(Control):
                 page.tab_label_color = color.parse(page.get('tab_label_color', "#fff1"))
             else:
                 page.tab_label_size = 0
+        if self.text:
+            env.renderer.set_font(self.get('font'))
+            self.text_x = x1 - self.button_text_size // 4 - \
+                          env.renderer.text_line_width(self.text, self.button_text_size)
 
         # layout children
         for page in self.children:
@@ -383,6 +390,10 @@ class TabSheet(Control):
 
     def do_draw(self, env: ControlEnvironment, x0: int, y0: int, x1: int, y1: int):
         current_page = None
+        # upper-right text
+        if self.text:
+            env.renderer.set_font(self.get('font'))
+            env.renderer.text_line(self.text_x, self.button_text_y, self.button_text_size, self.text, self.get('color', "fff"))
         # inactive tab buttons
         for page in self.children:
             if not page.visible:

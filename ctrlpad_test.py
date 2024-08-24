@@ -4,6 +4,7 @@
 
 import argparse
 import logging
+import time
 
 from ctrlpad.sdl import GLAppWindow, Cursor
 from ctrlpad.opengl import gl
@@ -20,8 +21,9 @@ class MyApp(GLAppWindow):
         self.set_cursor(Cursor.Hand)
 
         self.env = ControlEnvironment(self, self.renderer)
-        self.toplevel = TabSheet(toplevel=True)
+        self.toplevel = TabSheet(toplevel=True, color="888")
         self.refresh = self.get_refresh_token(0.5)
+        self.tl_clock_last_minute = 0
 
         page = self.toplevel.add_page(GridLayout(8,4), "Page One", label="WELCOME")
         panic = page.pack(2,2, Button("PANIC BUTTON", state='disabled', hue=20, sat=.2))
@@ -66,6 +68,11 @@ class MyApp(GLAppWindow):
         self.request_frames(1)
 
     def on_draw(self):
+        t = time.localtime()
+        if t.tm_min != self.tl_clock_last_minute:
+            self.toplevel.set_text(f"{t.tm_hour}:{t.tm_min:02d}")
+            self.tl_clock_last_minute = t.tm_min
+
         gl.Clear(gl.COLOR_BUFFER_BIT)
         self.renderer.begin_frame(self.vp_width, self.vp_height)
         self.toplevel.draw(self.env)
