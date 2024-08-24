@@ -10,6 +10,7 @@ from ctrlpad.sdl import GLAppWindow, Cursor
 from ctrlpad.opengl import gl
 from ctrlpad.renderer import Renderer
 from ctrlpad.controls import bind, ControlEnvironment, GridLayout, TabSheet, Label, Button
+from ctrlpad.clock import Clock
 from ctrlpad.crossbar import Crossbar
 
 
@@ -28,7 +29,8 @@ class MyApp(GLAppWindow):
         self.refresh = self.get_refresh_token(0.5)
         self.tl_clock_last_minute = 0
 
-        page = self.toplevel.add_page(GridLayout(8,4), "Page One", label="WELCOME")
+        page = self.toplevel.add_page(GridLayout(16,8), "Page One", label="WELCOME")
+        page.pack(8,8, Clock())
         panic = page.pack(2,2, Button("PANIC BUTTON", state='disabled', hue=20, sat=.2))
         @bind(panic)
         def cmd(e,b):
