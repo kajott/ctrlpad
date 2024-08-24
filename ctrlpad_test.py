@@ -9,7 +9,8 @@ import time
 from ctrlpad.sdl import GLAppWindow, Cursor
 from ctrlpad.opengl import gl
 from ctrlpad.renderer import Renderer
-from ctrlpad.controls import bind, ControlEnvironment, GridLayout, TabSheet, Label, Button
+from ctrlpad.controls import bind, merge_time, ControlEnvironment, \
+                             GridLayout, TabSheet, Label, Button
 from ctrlpad.clock import Clock
 from ctrlpad.crossbar import Crossbar
 
@@ -26,7 +27,6 @@ class MyApp(GLAppWindow):
 
         self.env = ControlEnvironment(self, self.renderer)
         self.toplevel = TabSheet(toplevel=True, color="888")
-        self.refresh = self.get_refresh_token(0.5)
         self.tl_clock_last_minute = 0
 
         page = self.toplevel.add_page(GridLayout(16,8), "Page One", label="WELCOME")
@@ -34,7 +34,6 @@ class MyApp(GLAppWindow):
         panic = page.pack(2,2, Button("PANIC BUTTON", state='disabled', hue=20, sat=.2))
         @bind(panic)
         def cmd(e,b):
-            self.refresh.cancel()
             panic.visible = False
         page.pack(2,2, Button("CLICK")).cmd = lambda e,b: setattr(panic, 'state', None)
         page.pack(2,2, Button("TOGGLE", toggle=True)).cmd = lambda e,b: print("toggle state:", b.active)
@@ -72,16 +71,21 @@ class MyApp(GLAppWindow):
         self.toplevel.layout(self.env, 0,0, w, h)
         self.request_frames(1)
 
-    def on_draw(self):
-        t = time.localtime()
-        if t.tm_min != self.tl_clock_last_minute:
-            self.toplevel.set_text(f"{t.tm_hour}:{t.tm_min:02d}")
-            self.tl_clock_last_minute = t.tm_min
+    def on_draw(self, t):
+        # update the clock
+        res = None
+        tm = time.localtime(t)
+        if tm.tm_min != self.tl_clock_last_minute:
+            self.toplevel.set_text(f"{tm.tm_hour}:{tm.tm_min:02d}")
+            self.tl_clock_last_minute = tm.tm_min
+        res = (60 - tm.tm_sec) + (1.0 - (t - int(t)))
 
+        # actual drawing
         gl.Clear(gl.COLOR_BUFFER_BIT)
-        self.renderer.begin_frame(self.vp_width, self.vp_height)
-        self.toplevel.draw(self.env)
-        self.renderer.end_frame()
+        self.env.begin_frame(t)
+        res = merge_time(res, self.toplevel.draw(self.env))
+        self.env.end_frame()
+        return res
 
     def on_key_down(self, sym: str):
         if sym == 'Q': self.quit()

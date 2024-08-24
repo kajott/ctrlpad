@@ -44,7 +44,6 @@ class Clock(Control):
         - text_space    = relative space between digits in the HH:MM text (1.0=normal dot width)
         """
         super().__init__(**style)
-        self.refresh = None
 
     def do_layout(self, env: ControlEnvironment, x0: int, y0: int, x1: int, y1: int):
         # colors
@@ -101,11 +100,8 @@ class Clock(Control):
             tx += self.dot_slant
 
     def do_draw(self, env: ControlEnvironment, x0: int, y0: int, x1: int, y1: int):
-        if not self.refresh:
-            self.refresh = env.window.get_refresh_token(0.25)
-
         # parse the time into the local digit data structure
-        t = time.time()
+        t = env.draw_time
         frac = t - int(t)
         half = int(frac < 0.5)
         t = time.localtime(t)
@@ -119,8 +115,5 @@ class Clock(Control):
         for dx0, dy0, dx1, dy1, i, vmap in self.dots:
             env.renderer.box(dx0,dy0,dx1,dy1, self.dot_colors[vmap[t[i]]], radius=self.dot_radius)
 
-        # request additional frames if we're close to a change
-        frac *= 2
-        frac -= int(frac)
-        if frac > 0.5:
-            env.window.request_frames(1)
+        # order the next update
+        return (1.0 - frac) if (frac > 0.5) else (0.5 - frac)

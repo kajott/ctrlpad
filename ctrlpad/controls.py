@@ -8,7 +8,7 @@ from .renderer import Renderer
 from . import color
 
 __all__ = [
-    'bind',
+    'bind', 'merge_time',
     'ControlEnvironment',
     'Control', 'TextControl',
     'GridLayout', 'TabSheet',
@@ -30,6 +30,12 @@ def bind(control):
     """
     return lambda func: setattr(control, func.__name__, func)
 
+def merge_time(a, b):
+    "merge two 'next frame after' request times"
+    if not a: return b
+    if not b: return a
+    return min(a, b)
+
 ###############################################################################
 # MARK: ControlEnvironemnt
 
@@ -47,6 +53,7 @@ class ControlEnvironment:
     def __init__(self, window: GLAppWindow, renderer: Renderer):
         self.window = window
         self.renderer = renderer
+        self.draw_time = 0
         self.update_scale()
 
     def update_scale(self):
@@ -56,6 +63,15 @@ class ControlEnvironment:
     def scale(self, x):
         "convert size from abstract units to device pixels"
         return round(x * self.control_scale)
+
+    def begin_frame(self, t: float):
+        "begin a frame; notify the renderer and store the current time"
+        self.renderer.begin_frame(self.window.vp_width, self.window.vp_height)
+        self.draw_time = t
+
+    def end_frame(self):
+        "end a frame; notify the renderer"
+        self.renderer.end_frame()
 
 ###############################################################################
 # MARK: Control base
@@ -132,9 +148,10 @@ class Control:
             return
         if not self.layout_valid:
             self.layout(env, *self.geometry)
-        self.do_draw(env, *self.geometry)
+        res = self.do_draw(env, *self.geometry)
         for child in self.children:
-            child.draw(env)
+            res = merge_time(res, child.draw(env))
+        return res
 
     def do_draw(self, env: ControlEnvironment, x0: int, y0: int, x1: int, y1: int):
         "actual control-specific drawing function; to be overridden in subclasses"
