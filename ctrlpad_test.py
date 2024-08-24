@@ -14,11 +14,14 @@ from ctrlpad.crossbar import Crossbar
 
 
 class MyApp(GLAppWindow):
+    invisible_quit_button_size = 20
+
     def on_init(self):
         self.renderer = Renderer()
         #self.renderer.add_font("data/segoe")
         self.renderer.add_font("data/bahn")
         self.set_cursor(Cursor.Hand)
+        self.quit_timeout = None
 
         self.env = ControlEnvironment(self, self.renderer)
         self.toplevel = TabSheet(toplevel=True, color="888")
@@ -83,6 +86,15 @@ class MyApp(GLAppWindow):
 
     def on_mouse_down(self, x: int, y: int, button: int):
         logging.debug("click @ %d,%d", x, y)
+        if (x > (self.vp_width - self.invisible_quit_button_size)) and (y < self.invisible_quit_button_size):
+            now = time.time()
+            if self.quit_timeout and (now < self.quit_timeout):
+                self.quit()
+            else:
+                logging.info("invisible quit button hit - double-click to quit the program")
+                self.quit_timeout = now + 0.5
+        else:
+            self.quit_timeout = None
         self.toplevel.on_click(self.env, x, y)
 
 
@@ -104,3 +116,6 @@ if __name__ == "__main__":
     app = MyApp(1024, 600, "ControlPad Test App", fullscreen=args.fullscreen, fps_limit=args.fps_limit)
     if args.no_cursor: app.hide_cursor()
     app.main_loop()
+    logging.info("quitting ...")
+    del app
+    logging.info("program exited")
