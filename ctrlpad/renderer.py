@@ -195,7 +195,7 @@ if 0:  # texture atlas unit test
 class MSDFFont:
     _nullglyph = (0.5, False, 0.0,0.0,0.0,0.0, 0.0,0.0,0.0,0.0)
 
-    def __init__(self, filename: str, atlas: TextureAtlas):
+    def __init__(self, filename: str, atlas: TextureAtlas, baseline_shift: float = 0.0):
         basename = os.path.splitext(filename)[0]
         with open(basename + ".json") as f:
             data = json.load(f)
@@ -210,11 +210,12 @@ class MSDFFont:
         desc = metrics.get('descender', 0.0)
         self.line_height = metrics.get('lineHeight', 1.0)
         self.max_height = asc - desc
+        bl = asc + baseline_shift
         ult = metrics.get('underlineThickness', 0.01)
         uly = metrics.get('underlineY', -0.02)
-        self.underline_y0 = asc - uly - 0.5 * ult
-        self.underline_y1 = asc - uly + 0.5 * ult
-        self.baseline = asc
+        self.underline_y0 = bl - uly - 0.5 * ult
+        self.underline_y1 = bl - uly + 0.5 * ult
+        self.baseline = bl
 
         self.glyphs = {}  # cp: (advance, has_image_flag, x0,y0, x1,y1, u0,v0, u1,v1)
         for glyph in data.get('glyphs', []):
@@ -224,8 +225,8 @@ class MSDFFont:
             pb = glyph.get('planeBounds')
             if ab and pb:
                 self.glyphs[cp] = (adv, True,
-                    pb['left'],  asc - pb['top'],
-                    pb['right'], asc - pb['bottom'],
+                    pb['left'],  bl - pb['top'],
+                    pb['right'], bl - pb['bottom'],
                     img_x0 + ab['left'],  img_y1 - ab['top'],
                     img_x0 + ab['right'], img_y1 - ab['bottom'])
             else:
@@ -343,10 +344,10 @@ class Renderer:
         gl.Uniform2f(self.prog.uTexSize, w, h)
         self.tex = tex
 
-    def add_font(self, filename):
+    def add_font(self, filename, **kwargs):
         "load and register a new font, and return its name (or None in case of failure)"
         try:
-            self.font = MSDFFont(filename, self.atlas)
+            self.font = MSDFFont(filename, self.atlas, **kwargs)
         except Exception as e:
             log.error("failed to load font '%s': %s", filename, str(e))
             return None
@@ -650,7 +651,7 @@ def PrepareFont(name, fontfile=None, msdf_atlas_gen=None, size=32):
     # actually run the generator
     subprocess.run([msdf_atlas_gen,
         "-font", fontfile,
-        "-chars", "[0x20, 0x7E], [0xA0, 0xFF], [0x2010, 0x205E], [0x2199, 0x21FF], [0x2300, 0x232B], [0x23CE, 0x23FF], [0x25A0, 0x25FF], [0x2600, 0x263C], [0x2700, 0x27BF], 0xFFFD",
+        "-chars", "[0x20, 0x7E], [0xA0, 0xFF], [0x2010, 0x205E], [0x2199, 0x21FF], [0x2300, 0x232B], [0x23CE, 0x23FF], [0x25A0, 0x25FF], [0x2600, 0x27BF], 0xFFFD",
         "-fontname", os.path.basename(name),
         "-type", "msdf",
         "-size", str(size),

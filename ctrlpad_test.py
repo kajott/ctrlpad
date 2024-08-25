@@ -21,7 +21,7 @@ class MyApp(GLAppWindow):
     def on_init(self):
         self.renderer = Renderer()
         self.renderer.add_font("data/bahn")
-        self.renderer.add_font("data/symbol")
+        self.renderer.add_font("data/symbol", baseline_shift=-0.1)
         self.set_cursor(Cursor.Hand)
         self.quit_timeout = None
 
