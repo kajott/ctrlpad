@@ -148,24 +148,26 @@ class Crossbar:
         """
         page = GridLayout()
 
-        page.put(0,0, self.num_inputs * 2, 1, Label("INPUTS", valign=1, bar=3))
         page.locate(0,1)
         self.btn_in = [page.pack(2,2,
             Button(self.schemed_name(input_scheme, i, input_names, input_format),
                    manual=True, cmd=self._on_in_btn_click))
             for i in range(1, self.num_inputs+1)]
+        page.add_group_label("INPUTS")
 
-        page.put(0,3, self.num_outputs * 2, 1, Label("OUTPUTS", valign=1, bar=3))
         page.locate(0,4)
         self.btn_out = [page.pack(2,2,
             Button(self.schemed_name(output_scheme, i, output_names, output_format),
                    toggle=True))
             for i in range(1, self.num_outputs+1)]
+        page.add_group_label("OUTPUTS")
 
         nbuttons = max(self.num_inputs, self.num_outputs)
-        page.put(nbuttons * 2 - 4, 6, 4,1, Label("CONTROL", valign=1, bar=3))
-        page.put(nbuttons * 2 - 4, 7, 2,2, Button("CANCEL", hue=30, sat=0.1, cmd=self._on_cancel_click))
-        page.put(nbuttons * 2 - 2, 7, 2,2, Button("TAKE", hue=142, sat=0.1, cmd=self._on_take_click))
+        page.locate(nbuttons * 2 - 4, 7)
+        page.pack(2,2, Button("CANCEL", hue=30, sat=0.1, cmd=self._on_cancel_click))
+        page.pack(2,2, Button("TAKE", hue=142, sat=0.1, cmd=self._on_take_click))
+        page.add_group_label("CONTROL")
+
         page.locate(0,7)
         return page
 

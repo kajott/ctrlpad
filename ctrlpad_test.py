@@ -27,11 +27,12 @@ def init_app(env: ControlEnvironment):
     # ---------------------------------------------------------------------
 
     page = env.toplevel.add_page(GridLayout(16,8), "Examples", label="TESTING")
-    page.put(0,0, 12,1, Label("COLORFUL BUTTONS", valign=1, bar=3))
+    page.locate(0,1)
     for i, name in enumerate("RED YELLOW GREEN CYAN BLUE MAGENTA".split()):
         hue, sat = 30 + i * 60, 0.1
-        page.put(i*2,1, 2,2, Button(name, hue=hue, sat=sat, toggle=True))
         page.put(i*2,3, 1,1, Button(name[0], hue=hue, sat=sat, state='disabled'))
+        page.put(i*2,1, 2,2, Button(name, hue=hue, sat=sat, toggle=True))
+    page.add_group_label("COLORFUL BUTTONS")
 
     page.locate(0,5)
     panic = page.pack(2,2, Button("PANIC BUTTON", state='disabled', hue=20, sat=.2))
@@ -76,6 +77,7 @@ def init_app(env: ControlEnvironment):
         xbar.tie((5,1),(6,2),(7,3))
     page.pack(2,2, Button("ATEM to Screen")).cmd = lambda e,b: \
         xbar.tie(('A',4,7,8))
+    page.add_group_label("MACROS")
 
 
 if __name__ == "__main__":
