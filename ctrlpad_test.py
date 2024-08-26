@@ -56,7 +56,7 @@ def init_app(env: ControlEnvironment):
 
     xbar = Crossbar(8, 8)
     # https://keyj.emphy.de/photos/deadline2023/dl23_videosetup.png
-    xbar.add_ui_page(env.toplevel, input_names={
+    page = xbar.add_ui_page(env.toplevel, input_names={
         '1': "ATEM OUT 2",
         '2': "Stream Output",
         '3': "FOH HDMI",
@@ -70,6 +70,12 @@ def init_app(env: ControlEnvironment):
         "Compo1 Monitor", "Compo2 Monitor",
         "Main Screen", "Bar Screen"
     ], input_format="\u203a\u2039", output_format="\u2039\u203a")
+    page.pack(2,2, Button("Default Monitors")).cmd = lambda e,b: \
+        xbar.tie((5,5), (6,6))
+    page.pack(2,2, Button("Default ATEM")).cmd = lambda e,b: \
+        xbar.tie((5,1),(6,2),(7,3))
+    page.pack(2,2, Button("ATEM to Screen")).cmd = lambda e,b: \
+        xbar.tie(('A',4,7,8))
 
 
 if __name__ == "__main__":

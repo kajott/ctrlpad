@@ -26,14 +26,26 @@ class Crossbar:
         self.log = logging.getLogger(name or self.__class__.__name__)
         self.result = None
 
+    @staticmethod
+    def str2int(s):
+        try:
+            return int(s)
+        except ValueError:
+            if not(isinstance(s, str)) or (len(s) != 1):
+                return 0  # not a string or invalid string
+            return ord(s.upper()) - 64  # convert letter to number
+
     def tie(self, *ties):
         """
         Send switch ('tie') commands to the crossbars.
         'ties' are tuples or lists, each of which contains at least two
         elements: the input number, followed by one or more output numbers.
-        Note that input and output numbers are zero-based.
+        Note that input and output numbers are one-based.
         """
-        ties = [tie for tie in map(tuple, ties) if (len(tie) > 1) and (0 <= tie[0] < self.num_inputs) and all(0 <= out < self.num_outputs for out in tie[1:])]
+        ties = [tie for tie in (tuple(map(self.str2int, raw_tie)) for raw_tie in ties) \
+                if (len(tie) > 1) \
+                and     (0 < tie[0] <= self.num_inputs) \
+                and all((0 < out    <= self.num_outputs) for out in tie[1:])]
         if not ties: return
         self.log.info("TIE: %r", ties)
         self.on_tie(ties)
@@ -92,14 +104,14 @@ class Crossbar:
 
     @staticmethod
     def schemed_name(scheme: str, num: int, names=None, format=None) -> str:
-        if   scheme == '1': s_num = str(num + 1)
-        elif scheme == 'A': s_num = chr(num + 65)
-        elif scheme == 'a': s_num = chr(num + 97)
+        if   scheme == '1': s_num = str(num)
+        elif scheme == 'A': s_num = chr(num + 64)
+        elif scheme == 'a': s_num = chr(num + 96)
         else: s_num = str(num)
         if names and isinstance(names, dict):
             name = names.get(s_num)
-        elif names and (0 <= num < len(names)):
-            name = names[num]
+        elif names and (0 < num <= len(names)):
+            name = names[num - 1]
         else:
             name = None
         if not name:
@@ -113,7 +125,7 @@ class Crossbar:
 
     def create_ui(self, input_scheme: str = '1', output_scheme: str = '1',
                         input_names=None,        output_names=None,
-                        input_format=None,       output_format=None):
+                        input_format=None,       output_format=None) -> GridLayout:
         """
         Create a GridLayout for controlling the crossbar.
 
@@ -130,6 +142,9 @@ class Crossbar:
         - output_scheme: as input_scheme, but for the outputs
         - output_names:  as input_names,  but for the outputs
         - output_format: as input_format, but for the outputs
+
+        The layout is configured such that additional 2x2 buttons can be placed
+        onto the lower left edge with `.pack(2,2, Button(...))`.
         """
         page = GridLayout()
 
@@ -138,22 +153,23 @@ class Crossbar:
         self.btn_in = [page.pack(2,2,
             Button(self.schemed_name(input_scheme, i, input_names, input_format),
                    manual=True, cmd=self._on_in_btn_click))
-            for i in range(self.num_inputs)]
+            for i in range(1, self.num_inputs+1)]
 
         page.put(0,3, self.num_outputs * 2, 1, Label("OUTPUTS", valign=1, bar=3))
         page.locate(0,4)
         self.btn_out = [page.pack(2,2,
             Button(self.schemed_name(output_scheme, i, output_names, output_format),
                    toggle=True))
-            for i in range(self.num_outputs)]
+            for i in range(1, self.num_outputs+1)]
 
         nbuttons = max(self.num_inputs, self.num_outputs)
         page.put(nbuttons * 2 - 4, 6, 4,1, Label("CONTROL", valign=1, bar=3))
         page.put(nbuttons * 2 - 4, 7, 2,2, Button("CANCEL", hue=30, sat=0.1, cmd=self._on_cancel_click))
         page.put(nbuttons * 2 - 2, 7, 2,2, Button("TAKE", hue=142, sat=0.1, cmd=self._on_take_click))
+        page.locate(0,7)
         return page
 
-    def add_ui_page(self, parent: TabSheet, title: str = None, *args, **kwargs):
+    def add_ui_page(self, parent: TabSheet, title: str = None, *args, **kwargs) -> GridLayout:
         """
         add a page to a TabSheet for controlling the crossbar;
         uses the same options as create_ui()
@@ -173,9 +189,9 @@ class Crossbar:
         self._clear_buttons()
 
     def _on_take_click(self, env: ControlEnvironment, btn: Control):
-        tie = [i for i, btn in enumerate(self.btn_in) if btn.state]
+        tie = [i for i, btn in enumerate(self.btn_in, 1) if btn.state]
         if len(tie) == 1:
-            tie += [i for i, btn in enumerate(self.btn_out) if btn.state]
+            tie += [i for i, btn in enumerate(self.btn_out, 1) if btn.state]
             self.tie(tie)
         self._clear_buttons()
 
@@ -314,7 +330,7 @@ class LightwareCrossbar(TCPIPCrossbar):
             self.notify_success()
 
     def on_tie(self, ties):
-        self.send(b''.join(b'{%d@%d}\r\n' % (pin+1, pout+1) for pin, pout in self.flatten_ties(ties)))
+        self.send(b''.join(b'{%d@%d}\r\n' % tie for tie in self.flatten_ties(ties)))
 
 class ExtronCrossbar(TCPIPCrossbar):
     "crossbar switch using the Extron DXP SIS protocol"
@@ -340,7 +356,7 @@ class ExtronCrossbar(TCPIPCrossbar):
         if (len(ties) == 1) and (len(ties[0]) == 2):
             self.send(b'%d*%d!' % (ties[0][0]+1, ties[0][1]+1))
         else:
-            self.send(b'\x1b+Q' + b''.join(b'%d*%d!' % (pin+1, pout+1) for pin, pout in self.flatten_ties(ties)) + b'\r\n')
+            self.send(b'\x1b+Q' + b''.join(b'%d*%d!' % tie for tie in self.flatten_ties(ties)) + b'\r\n')
 
 ###############################################################################
 
