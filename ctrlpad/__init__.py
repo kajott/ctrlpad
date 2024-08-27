@@ -78,6 +78,10 @@ def run_application(title: str, init_func, **toplevel_kwargs):
     """
 
     parser = argparse.ArgumentParser()
+    parser.add_argument("-v", "--verbose", action='count', default=0,
+                        help="show more verbose log messages")
+    parser.add_argument("-q", "--quiet", action='count', default=0,
+                        help="show less verbose log messages (only warnings and errors)")
     parser.add_argument("-f", "--fullscreen", action='store_true',
                         help="run in fullscreen mode")
     parser.add_argument("-c", "--no-cursor", action='store_true',
@@ -93,8 +97,12 @@ def run_application(title: str, init_func, **toplevel_kwargs):
                         help="set primary UI font [default: %(default)s]")
     args = parser.parse_args()
 
+    log_levels = (logging.CRITICAL, logging.ERROR, logging.WARNING, logging.INFO, logging.DEBUG)
+    log_level_idx = log_levels.index(logging.INFO) + args.verbose - args.quiet
+    log_level = log_levels[max(0, min(len(log_levels) - 1, log_level_idx))]
+
     logging.basicConfig(
-        level=logging.DEBUG,
+        level=log_level,
         format='%(asctime)s | %(name)-20s | %(levelname)-8s | %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
     )

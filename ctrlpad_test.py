@@ -3,16 +3,16 @@
 # SPDX-License-Identifier: MIT
 
 import ctrlpad
-from ctrlpad.controls import bind, ControlEnvironment, GridLayout, Label, Button
-from ctrlpad.clock import Clock
 from ctrlpad.mpd import MPDClient, MPDControl
-from ctrlpad.crossbar import Crossbar
+from ctrlpad.controls import bind, ControlEnvironment, GridLayout, Label, Button
+import ctrlpad.clock
+import ctrlpad.crossbar
 
 
 def init_app(env: ControlEnvironment):
 
     page = env.toplevel.add_page(GridLayout(16,8), "General", label="WELCOME")
-    page.pack(8,8, Clock())
+    page.pack(8,8, ctrlpad.clock.Clock())
     mpd = page.pack(8,3, MPDControl(MPDClient()))
     page.locate(8,3)
     page.pack(2,2, Button("Play BGM")).cmd = lambda e,b: \
@@ -33,6 +33,13 @@ def init_app(env: ControlEnvironment):
         page.put(i*2,3, 1,1, Button(name[0], hue=hue, sat=sat, state='disabled'))
         page.put(i*2,1, 2,2, Button(name, hue=hue, sat=sat, toggle=True))
     page.add_group_label("COLORFUL BUTTONS")
+
+    page.locate(13,1)
+    for row in range(3):
+        for col in range(3):
+            page.pack(1,1, Button(chr(row+65) + str(col+1)))
+        page.newline()
+    page.add_group_label("GROUP")
 
     page.locate(0,5)
     panic = page.pack(2,2, Button("PANIC BUTTON", state='disabled', hue=20, sat=.2))
@@ -55,7 +62,9 @@ def init_app(env: ControlEnvironment):
 
     # ---------------------------------------------------------------------
 
-    xbar = Crossbar(8, 8)
+    xbar = ctrlpad.crossbar.Crossbar(8, 8)
+    #xbar = ctrlpad.crossbar.ExtronCrossbar("localhost", 2323)
+
     # https://keyj.emphy.de/photos/deadline2023/dl23_videosetup.png
     page = xbar.add_ui_page(env.toplevel, input_names={
         '1': "ATEM OUT 2",

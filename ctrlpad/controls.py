@@ -225,6 +225,8 @@ class GridLayout(Control):
         control.grid_end_y = grid_pos_y + grid_size_y
         self.next_grid_x = control.grid_end_x
         self.next_grid_y = control.grid_start_y
+        self.group_end_x = max(self.group_end_x, control.grid_end_x)
+        self.group_end_y = max(self.group_end_y, control.grid_end_y)
         self.invalidate_layout()
         return control
 
@@ -234,23 +236,28 @@ class GridLayout(Control):
 
     def locate(self, grid_pos_x: int, grid_pos_y: int):
         "set the position of the next control to be pack()ed"
-        self.group_start_x = grid_pos_x
-        self.next_grid_x = grid_pos_x
-        self.next_grid_y = grid_pos_y
+        self.next_grid_x = self.group_start_x = self.group_end_x = grid_pos_x
+        self.next_grid_y = self.group_start_y = self.group_end_y = grid_pos_y
+
+    def newline(self):
+        "create a new line of .pack()ed controls"
+        self.next_grid_x = self.group_start_x
+        self.next_grid_y = self.group_end_y
 
     def add_group_label(self, text: str, **style):
         """
         add a centered label with bars on top of the controls .pack()ed
         after the last .locate() or .add_group_label();
-        styles are the same as for the Label class, but the default differ
+        styles are the same as for the Label class, but the default differ;
+        this also closes the current group
         """
-        if (self.next_grid_y < 1) or (self.next_grid_x <= self.group_start_x):
+        if (self.group_start_y < 1) or (self.group_end_x <= self.group_start_x):
             return
         real_style = { 'halign': 2, 'valign': 1, 'bar': 3 }
         real_style.update(style)
-        control = self.put(self.group_start_x, self.next_grid_y - 1, self.next_grid_x - self.group_start_x, 1, Label(text, **real_style))
-        self.group_start_x = self.next_grid_x
-        self.next_grid_y += 1
+        control = self.put(self.group_start_x, self.group_start_y - 1, self.group_end_x - self.group_start_x, 1, Label(text, **real_style))
+        self.next_grid_x = self.group_start_x = self.group_end_x
+        self.next_grid_y = self.group_end_y = self.group_start_y
         return control
 
     def get_grid_max(self):
