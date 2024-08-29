@@ -247,6 +247,7 @@ class GLAppWindow:
         if not self._ctx:
             raise RuntimeError("failed to create context")
         self._lib.SDL_GL_SetSwapInterval(1)
+        self._redraw_event = self._lib.SDL_RegisterEvents(1)
         self._active = True
         self._fps_limit = fps_limit
         self._requested_frames = 2
@@ -374,6 +375,11 @@ class GLAppWindow:
     def get_mod_state(self):
         "return the state of the keyboard modifiers as a bitmask"
         return self._lib.SDL_GetModState()
+
+    def redraw(self):
+        "inject an event (from *any* thread) that causes a screen redraw"
+        ev = SDL_Event(type=self._redraw_event)
+        self._lib.SDL_PushEvent(ctypes.byref(ev))
 
     def quit(self):
         "quit the application after handling events"

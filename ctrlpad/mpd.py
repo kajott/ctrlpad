@@ -40,6 +40,7 @@ class MPDClient:
         self.fade_thread.start()
         self.fade_duration = 1.0
         self.fade_buttons = []
+        self.fade_end_notify_window = None
         self.fading = False
         self.volume = 100
         self.target_volume = 100
@@ -186,7 +187,7 @@ class MPDClient:
             if self.playing:  # currently playing -> fade out
                 fade_type = "out"
                 start_volume, end_volume = self.volume, 0
-                start_cmds, end_cmds = [], ['pause 1']
+                start_cmds, end_cmds = [], ['pause 1', f'setvol {self.target_volume}']
             else:  # not playing -> fade in
                 fade_type = "in"
                 start_volume, end_volume = 0, self.target_volume
@@ -200,7 +201,7 @@ class MPDClient:
                 t0 = time.time()
                 current_volume = start_volume
                 self.send_commands(*([f'setvol {current_volume}'] + start_cmds), quiet=True)
-                while self.fading and self.connected:
+                while self.fading and self.connected and not(self.cancel):
                     time.sleep(delay)
                     t = max(0.0, min(1.0, (time.time() - t0) / duration))
                     new_volume = round(start_volume * (1.0 - t) + end_volume * t)
@@ -218,6 +219,8 @@ class MPDClient:
             for btn in self.fade_buttons:
                 if btn.state == 'active':
                     btn.state = None
+            if not(self.cancel) and self.fade_end_notify_window:
+                self.fade_end_notify_window.redraw()
             self.fading = False
 
     def start_fade(self, duration: float = 0.0):
@@ -234,11 +237,12 @@ class MPDClient:
 
     def create_fade_button(self, duration: float, text: str, **style) -> Button:
         "create a UI button that starts/stops a fade operation"
-        def cmd(e: ControlEnvironment, c: Control):
-            if c.state == 'active':
+        def cmd(env: ControlEnvironment, control: Control):
+            if self.fading:
                 self.stop_fade()
             else:
-                c.state = 'active'
+                self.fade_end_notify_window = env.window
+                control.state = 'active'
                 self.start_fade(duration)
         btn = Button(text, cmd=cmd, manual=True, **style)
         self.fade_buttons.append(btn)
