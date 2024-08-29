@@ -9,7 +9,7 @@ import threading
 import time
 
 from .renderer import Renderer
-from .controls import ControlEnvironment, Control
+from .controls import ControlEnvironment, Control, Button
 from . import color
 
 ###############################################################################
@@ -34,12 +34,24 @@ class MPDClient:
         self.async_thread = threading.Thread(target=self._async_thread_func, name=self.log.name+"-AsyncThread")
         self.async_thread.daemon = True
         self.async_thread.start()
+        self.fade_trigger = threading.Event()
+        self.fade_thread = threading.Thread(target=self._fade_thread_func, name=self.log.name+"-FadeThread")
+        self.fade_thread.daemon = True
+        self.fade_thread.start()
+        self.fade_duration = 1.0
+        self.fade_buttons = []
+        self.fading = False
+        self.volume = 100
+        self.target_volume = 100
+        self.playing = False
         self.connect()
 
     def __del__(self):
         self.cancel = True
+        self.fade_trigger.set()
         self.async_trigger.set()
         self.async_thread.join(self.timeout)
+        self.fade_thread.join(self.timeout)
         self.disconnect()
 
     @property
@@ -130,6 +142,9 @@ class MPDClient:
                     if allow_reconnect:
                         return self.send_commands(*cmds, allow_reconnect=False, quiet=quiet)
                 res = dict(self._read_response(quiet=quiet))
+                if (cmd == 'status') and res:
+                    self.volume = res.get('volume', self.volume)
+                    self.playing = res.get('state') == 'play'
             return res
 
     def send_commands_async(self, *cmds, quiet: bool = False):
@@ -158,6 +173,76 @@ class MPDClient:
                 self.async_cmds = None
                 self.async_result = self.send_commands(*cmds, quiet=self.async_quiet)
             self.async_done.set()
+
+    def _fade_thread_func(self):
+        while not self.cancel:
+            self.fade_trigger.wait()
+            self.fading = True
+            self.fade_trigger.clear()
+            if self.cancel: return
+
+            # get current status, decide on fade direction
+            self.send_commands('status', quiet=True)
+            if self.playing:  # currently playing -> fade out
+                fade_type = "out"
+                start_volume, end_volume = self.volume, 0
+                start_cmds, end_cmds = [], ['pause 1']
+            else:  # not playing -> fade in
+                fade_type = "in"
+                start_volume, end_volume = 0, self.target_volume
+                start_cmds, end_cmds = ['play'], []
+
+            # perform actual fade
+            if self.fading and self.connected and (start_volume != end_volume) and (self.fade_duration > 0.0):
+                duration = self.fade_duration
+                self.log.info("starting %.1f-second fade-%s", duration, fade_type)
+                delay = duration / abs(start_volume - end_volume)
+                t0 = time.time()
+                current_volume = start_volume
+                self.send_commands(*([f'setvol {current_volume}'] + start_cmds), quiet=True)
+                while self.fading and self.connected:
+                    time.sleep(delay)
+                    t = max(0.0, min(1.0, (time.time() - t0) / duration))
+                    new_volume = round(start_volume * (1.0 - t) + end_volume * t)
+                    if new_volume != current_volume:
+                        current_volume = new_volume
+                        cmd = f'setvol {current_volume}'
+                        if current_volume == end_volume:
+                            self.send_commands(cmd, *end_cmds, quiet=True)
+                            break
+                        else:
+                            self.send_commands(cmd, quiet=True)
+
+            # finish fade
+            self.log.info("fade-%s stopped", fade_type)
+            for btn in self.fade_buttons:
+                if btn.state == 'active':
+                    btn.state = None
+            self.fading = False
+
+    def start_fade(self, duration: float = 0.0):
+        "start a fading operation"
+        self.stop_fade()
+        if duration > 0.0:
+            self.fade_duration = duration
+        self.fade_trigger.set()
+
+    def stop_fade(self):
+        "stop a fading operation"
+        self.fade_trigger.clear()
+        self.fading = False
+
+    def create_fade_button(self, duration: float, text: str, **style) -> Button:
+        "create a UI button that starts/stops a fade operation"
+        def cmd(e: ControlEnvironment, c: Control):
+            if c.state == 'active':
+                self.stop_fade()
+            else:
+                c.state = 'active'
+                self.start_fade(duration)
+        btn = Button(text, cmd=cmd, manual=True, **style)
+        self.fade_buttons.append(btn)
+        return btn
 
     @staticmethod
     def shuffle_folders(*folders, single: bool = False):
@@ -290,9 +375,7 @@ class MPDControl(Control):
                         next_frame_after = 1.0 - (elapsed - int(elapsed))
                     self.time = self._fmt_time(elapsed) + " / " + \
                                 self._fmt_time(self.status_data['status'].get('duration'))
-                    self.button_set = self.button_set_playing \
-                        if (self.status_data['status'].get('state') == 'play') \
-                        else self.button_set_paused
+                    self.button_set = self.button_set_playing if self.mpd.playing else self.button_set_paused
                 elif slot == 'currentsong':
                     filename = os.path.splitext(os.path.basename(self.status_data['currentsong'].get('file', "")))[0]
                     parts = [part.replace("_", " ").strip().title() for part \

@@ -14,6 +14,7 @@ def init_app(env: ControlEnvironment):
     page = env.toplevel.add_page(GridLayout(16,8), "General", label="WELCOME")
     page.pack(8,8, ctrlpad.clock.Clock())
     mpd = page.pack(8,3, MPDControl(MPDClient()))
+
     page.locate(8,3)
     page.pack(2,2, Button("Play BGM")).cmd = lambda e,b: \
         mpd.send_commands(*MPDClient.shuffle_folders("calm", "semicalm", "trance"))
@@ -23,6 +24,14 @@ def init_app(env: ControlEnvironment):
         mpd.send_commands(*MPDClient.shuffle_folders("retro"))
     page.pack(2,2, Button("Play Single Banger")).cmd = lambda e,b: \
         mpd.send_commands(*MPDClient.shuffle_folders("banger", single=True))
+
+    page.locate(14,6)
+    page.pack(1,1, mpd.mpd.create_fade_button(1.0, "1s"))
+    page.pack(1,1, mpd.mpd.create_fade_button(2.0, "2s"))
+    page.newline()
+    page.pack(1,1, mpd.mpd.create_fade_button(5.0, "5s"))
+    page.pack(1,1, mpd.mpd.create_fade_button(10.0, "10s"))
+    page.add_group_label("FADE")
 
     # ---------------------------------------------------------------------
 
