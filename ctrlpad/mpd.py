@@ -42,7 +42,7 @@ class MPDClient:
         self.fade_buttons = []
         self.fade_end_notify_window = None
         self.fading = False
-        self.volume = 100
+        self.current_volume = 100
         self.target_volume = 100
         self.playing = False
         self.connect()
@@ -144,7 +144,7 @@ class MPDClient:
                         return self.send_commands(*cmds, allow_reconnect=False, quiet=quiet)
                 res = dict(self._read_response(quiet=quiet))
                 if (cmd == 'status') and res:
-                    self.volume = res.get('volume', self.volume)
+                    self.current_volume = res.get('volume', self.current_volume)
                     self.playing = res.get('state') == 'play'
             return res
 
@@ -186,8 +186,8 @@ class MPDClient:
             self.send_commands('status', quiet=True)
             if self.playing:  # currently playing -> fade out
                 fade_type = "out"
-                start_volume, end_volume = self.volume, 0
-                start_cmds, end_cmds = [], ['pause 1', f'setvol {self.target_volume}']
+                start_volume, end_volume = self.current_volume, 0
+                start_cmds, end_cmds = [], ['pause 1']
             else:  # not playing -> fade in
                 fade_type = "in"
                 start_volume, end_volume = 0, self.target_volume
@@ -216,6 +216,7 @@ class MPDClient:
 
             # finish fade
             self.log.info("fade-%s stopped", fade_type)
+            self.send_commands('status', quiet=True)
             for btn in self.fade_buttons:
                 if btn.state == 'active':
                     btn.state = None
@@ -256,15 +257,43 @@ class MPDClient:
              + [f'add "{f}"' for f in folders] \
              + ['shuffle', 'play']
 
+    def _restore_volume_if_not_playing_and(self, cmd: str):
+        if self.playing:
+            self.send_commands(cmd)
+        else:
+            self.send_commands('setvol 0', cmd, f'setvol {self.target_volume}')
+
+    def play(self):
+        "start or continue playback"
+        self._restore_volume_if_not_playing_and('play')
+    def pause(self):
+        "pause playback"
+        self.send_commands('pause 1')
+    def prev(self):
+        "navigate to the previous track"
+        self._restore_volume_if_not_playing_and('previous')
+    def next(self):
+        "navigate to the next track"
+        self._restore_volume_if_not_playing_and('next')
+    def seek_rel(self, delta_seconds: int):
+        "seek forward (positive) or backward (negative)"
+        self.send_commands(f'seekcur {delta_seconds:+d}')
+    def seek_bwd(self):
+        "seek 10 seconds backward"
+        self.seek_rel(-10)
+    def seek_fwd(self):
+        "seek 10 seconds forward"
+        self.seek_rel(+10)
+
 ###############################################################################
 
 class MPDControl(Control):
     "control widget to show status of an MPD client"
 
-    # button registry:    [0]       [1]        [2]         [3]       [4]            [5]
-    button_cmds        = ('play',   'pause 1', 'previous', 'next',   'seekcur -10', 'seekcur +10')
-    button_positions   = (2,        2,         0,          4,        1,             3)
-    button_icons       = ("\u23f5", "\u23f8",  "\u23ee",   "\u23ed", "\u23ea",      "\u23e9")
+    # button registry:    [0]       [1]        [2]         [3]       [4]         [5]
+    button_cmds        = ('play',   'pause',   'prev',     'next',   'seek_bwd', 'seek_fwd')
+    button_positions   = (2,        2,         0,          4,        1,          3)
+    button_icons       = ("\u23f5", "\u23f8",  "\u23ee",   "\u23ed", "\u23ea",   "\u23e9")
     button_set_playing = (1,2,3,4,5)
     button_set_paused  = (0,2,3,4,5)
     buttons_that_navigate = (0,2,3)
@@ -421,7 +450,7 @@ class MPDControl(Control):
         for btn in self.button_set:
             x0,y0, x1,y1 = self.button_rect[btn]
             if (x0 <= x < x1) and (y0 <= y < y1):
-                self.send_commands(self.button_cmds[btn])
+                getattr(self.mpd, self.button_cmds[btn])()
                 if btn in self.buttons_that_navigate:
                     self.curr_songid = -1
 
