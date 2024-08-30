@@ -38,9 +38,10 @@ class MPDClient:
         self.fade_thread = threading.Thread(target=self._fade_thread_func, name=self.log.name+"-FadeThread")
         self.fade_thread.daemon = True
         self.fade_thread.start()
+        self.fade_direction = 0  # 0 = auto, +1 = fade in, -1 = fade out
         self.fade_duration = 1.0
         self.fade_buttons = []
-        self.fade_end_notify_window = None
+        self.fade_notify_window = None
         self.fading = False
         self.current_volume = 100
         self.target_volume = 100
@@ -182,16 +183,27 @@ class MPDClient:
             self.fade_trigger.clear()
             if self.cancel: return
 
-            # get current status, decide on fade direction
+            # update UI
+            for btn in self.fade_buttons:
+                if btn.fade_duration == self.fade_duration:
+                    btn.state = 'active'
+            if not(self.cancel) and self.fade_notify_window:
+                self.fade_notify_window.redraw()
+
+            # get current status, decide on fade direction, set up parameters
             self.send_commands('status', quiet=True)
-            if self.playing:  # currently playing -> fade out
-                fade_type = "out"
-                start_volume, end_volume = self.current_volume, 0
-                start_cmds, end_cmds = [], ['pause 1']
-            else:  # not playing -> fade in
+            if not self.fade_direction:
+                self.fade_direction = -1 if self.playing else +1
+            start_cmds, end_cmds = [], []
+            start_volume = current_volume = self.current_volume
+            if self.fade_direction > 0:  # fade in
                 fade_type = "in"
-                start_volume, end_volume = 0, self.target_volume
-                start_cmds, end_cmds = ['play'], []
+                end_volume = self.target_volume
+                if not self.playing: start_cmds = ['play']
+            else:  # fade out
+                fade_type = "out"
+                end_volume = 0
+                if self.playing: end_cmds = ['pause 1']
 
             # perform actual fade
             if self.fading and self.connected and (start_volume != end_volume) and (self.fade_duration > 0.0):
@@ -199,7 +211,6 @@ class MPDClient:
                 self.log.info("starting %.1f-second fade-%s", duration, fade_type)
                 delay = duration / abs(start_volume - end_volume)
                 t0 = time.time()
-                current_volume = start_volume
                 self.send_commands(*([f'setvol {current_volume}'] + start_cmds), quiet=True)
                 while self.fading and self.connected and not(self.cancel):
                     time.sleep(delay)
@@ -220,15 +231,16 @@ class MPDClient:
             for btn in self.fade_buttons:
                 if btn.state == 'active':
                     btn.state = None
-            if not(self.cancel) and self.fade_end_notify_window:
-                self.fade_end_notify_window.redraw()
+            if not(self.cancel) and self.fade_notify_window:
+                self.fade_notify_window.redraw()
             self.fading = False
 
-    def start_fade(self, duration: float = 0.0):
-        "start a fading operation"
+    def start_fade(self, direction: int = 0, duration: float = 0.0):
+        "start a fading operation; direction=0 = auto, +1 = fade in, -1 = fade out"
         self.stop_fade()
         if duration > 0.0:
             self.fade_duration = duration
+        self.fade_direction = direction
         self.fade_trigger.set()
 
     def stop_fade(self):
@@ -236,16 +248,22 @@ class MPDClient:
         self.fade_trigger.clear()
         self.fading = False
 
+    def _on_fade_button_click(self, env: ControlEnvironment, btn: Control):
+        self.fade_notify_window = env.window
+        if not self.fading:
+            # no fade in progress -> start fading
+            self.start_fade(0, btn.fade_duration)
+        elif self.fade_duration == btn.fade_duration:
+            # click on same fade button -> stop fading
+            self.stop_fade()
+        else:
+            # click on other fade button -> re-trigger fading with new duration
+            self.start_fade(self.fade_direction, btn.fade_duration)
+
     def create_fade_button(self, duration: float, text: str, **style) -> Button:
         "create a UI button that starts/stops a fade operation"
-        def cmd(env: ControlEnvironment, control: Control):
-            if self.fading:
-                self.stop_fade()
-            else:
-                self.fade_end_notify_window = env.window
-                control.state = 'active'
-                self.start_fade(duration)
-        btn = Button(text, cmd=cmd, manual=True, **style)
+        btn = Button(text, cmd=self._on_fade_button_click, manual=True, **style)
+        btn.fade_duration = duration
         self.fade_buttons.append(btn)
         return btn
 
