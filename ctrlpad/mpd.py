@@ -22,6 +22,7 @@ class MPDClient:
         self.ip = ip
         self.port = port
         self.timeout = timeout
+        self.connected = False
         self.sock = None
         self.lock = threading.Lock()
         self.cancel = False
@@ -56,10 +57,6 @@ class MPDClient:
         self.fade_thread.join(self.timeout)
         self.disconnect()
 
-    @property
-    def connected(self) -> bool:
-        return bool(self.sock)
-
     def connect(self):
         "connect to MPD"
         if self.sock: return
@@ -79,10 +76,12 @@ class MPDClient:
             self.log.error("invalid response from server")
             self.sock.close()
             self.sock = None
+        self.connected = True
 
     def disconnect(self):
         "disconnect from MPD"
         if not self.sock: return
+        self.connected = False
         try:
             self.sock.close()
         except EnvironmentError:
@@ -133,7 +132,7 @@ class MPDClient:
             self.connect()
         with self.lock:
             for cmd in cmds:
-                if self.cancel or not(self.sock):
+                if self.cancel or not(self.connected):
                     return {}
                 if not quiet:
                     self.log.debug("SEND '%s'", cmd)
@@ -161,7 +160,7 @@ class MPDClient:
     def get_async_result(self, wait: bool = True):
         "get the result of the last asynchronously executed command"
         if wait:
-            self.async_done.wait()
+            self.async_done.wait(self.timeout)
         res = self.async_result
         if res: self.async_result = None
         return res
@@ -227,7 +226,8 @@ class MPDClient:
 
             # finish fade
             self.log.info("fade-%s stopped", fade_type)
-            self.send_commands('status', quiet=True)
+            if self.connected and not(self.cancel):
+                self.send_commands('status', quiet=True)
             for btn in self.fade_buttons:
                 if btn.state == 'active':
                     btn.state = None
