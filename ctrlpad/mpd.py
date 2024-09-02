@@ -134,6 +134,8 @@ class MPDClient:
             for cmd in cmds:
                 if self.cancel or not(self.connected) or not(self.sock):
                     return {}
+                if cmd == '.resetvol':
+                    cmd = f'setvol {self.target_volume}'
                 if not quiet:
                     self.log.debug("SEND '%s'", cmd)
                 try:
@@ -194,7 +196,7 @@ class MPDClient:
             if not self.fade_direction:
                 self.fade_direction = -1 if self.playing else +1
             start_cmds, end_cmds = [], []
-            start_volume = current_volume = self.current_volume
+            start_volume = current_volume = self.current_volume if self.playing else 0
             if self.fade_direction > 0:  # fade in
                 fade_type = "in"
                 end_volume = self.target_volume
@@ -202,7 +204,7 @@ class MPDClient:
             else:  # fade out
                 fade_type = "out"
                 end_volume = 0
-                if self.playing: end_cmds = ['pause 1']
+                if self.playing: end_cmds = ['pause 1', '.resetvol']
 
             # perform actual fade
             if self.fading and self.connected and (start_volume != end_volume) and (self.fade_duration > 0.0):
@@ -270,7 +272,7 @@ class MPDClient:
     @staticmethod
     def shuffle_folders(*folders, single: bool = False):
         "generate commands to play one or more folders in shuffled order"
-        return ['stop', 'clear', 'random 0'] \
+        return ['stop', '.resetvol', 'clear', 'random 0'] \
              +(['single 1', 'repeat 0'] if single else ['single 0', 'repeat 1']) \
              + [f'add "{f}"' for f in folders] \
              + ['shuffle', 'play']
@@ -279,7 +281,7 @@ class MPDClient:
         if self.playing:
             self.send_commands(cmd)
         else:
-            self.send_commands('setvol 0', cmd, f'setvol {self.target_volume}')
+            self.send_commands('setvol 0', cmd, '.resetvol')
 
     def play(self):
         "start or continue playback"
