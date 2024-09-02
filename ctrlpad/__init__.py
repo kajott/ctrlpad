@@ -83,6 +83,8 @@ def run_application(title: str, init_func, **toplevel_kwargs):
                         help="show more verbose log messages")
     parser.add_argument("-q", "--quiet", action='count', default=0,
                         help="show less verbose log messages (only warnings and errors)")
+    parser.add_argument("-p", "--pidfile", metavar="FILE",
+                        help="store this process's PID in FILE")
     parser.add_argument("-f", "--fullscreen", action='store_true',
                         help="run in fullscreen mode")
     parser.add_argument("-c", "--no-cursor", action='store_true',
@@ -111,25 +113,41 @@ def run_application(title: str, init_func, **toplevel_kwargs):
     )
     color.set_global_gamma(args.gamma)
 
-    app = CtrlPadAppWindow(*args.geometry, title, fullscreen=args.fullscreen, fps_limit=args.fps_limit)
-    app.env = ControlEnvironment(app, Renderer())
-    app.env.renderer.add_font(os.path.join(args.data_dir, args.primary_font))
-    if args.primary_font != "symbol":
-        app.env.renderer.add_font(os.path.join(args.data_dir, "symbol"))
+    pidfile = os.path.abspath(args.pidfile) if args.pidfile else None
+    if pidfile:
+        try:
+            with open(pidfile, 'w') as f:
+                print(os.getpid(), file=f)
+        except EnvironmentError as e:
+            logging.error("can't write PID file '%s' - %s", pidfile, str(e))
 
-    final_tl_kwargs = {'color': "888"}
-    final_tl_kwargs.update(toplevel_kwargs)
-    app.env.toplevel = TabSheet(toplevel=True, **final_tl_kwargs)
+    try:
+        app = CtrlPadAppWindow(*args.geometry, title, fullscreen=args.fullscreen, fps_limit=args.fps_limit)
+        app.env = ControlEnvironment(app, Renderer())
+        app.env.renderer.add_font(os.path.join(args.data_dir, args.primary_font))
+        if args.primary_font != "symbol":
+            app.env.renderer.add_font(os.path.join(args.data_dir, "symbol"))
 
-    app.set_cursor(Cursor.Hand)
-    if args.no_cursor:
-        app.hide_cursor()
+        final_tl_kwargs = {'color': "888"}
+        final_tl_kwargs.update(toplevel_kwargs)
+        app.env.toplevel = TabSheet(toplevel=True, **final_tl_kwargs)
 
-    init_func(app.env)
-    app.env.toplevel.layout(app.env, 0,0, app.vp_width, app.vp_height)
+        app.set_cursor(Cursor.Hand)
+        if args.no_cursor:
+            app.hide_cursor()
 
-    logging.info("initialization finished, starting main loop")
-    app.main_loop()
-    logging.info("quitting ...")
-    del app
-    logging.info("application exited")
+        init_func(app.env)
+        app.env.toplevel.layout(app.env, 0,0, app.vp_width, app.vp_height)
+
+        logging.info("initialization finished, starting main loop")
+        app.main_loop()
+        logging.info("quitting ...")
+        del app
+        logging.info("application exited")
+
+    finally:
+        if pidfile:
+            try:
+                os.unlink(pidfile)
+            except EnvironmentError:
+                pass

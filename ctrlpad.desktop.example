@@ -1,0 +1,19 @@
+[Desktop Entry]
+
+# An example .desktop file to launch run.sh for a ctrlpad application.
+# Adapt this and copy it to ~/.local/share/applications/ctrlpad.desktop
+# or ~/Desktop/ctrlpad.desktop.
+
+Type=Application
+Version=1.0
+Name=ctrlpad
+
+#       change this
+#    vvvvvvvvvvvvvvvv
+Path=/home/pi/ctrlpad
+Exec=/home/pi/ctrlpad/run.sh
+#    ^^^^^^^^^^^^^^^^
+
+Terminal=false
+StartupNotify=false
+Categories=AudioVideo;

@@ -1,0 +1,42 @@
+# Example configuration file for ctrlpad's run.conf
+
+# Copy this file to run.conf and edit it to suit your application.
+
+# This is a shell script file, so please quote values and do *not* put
+# any spaces around the equals symbols!
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+# The Python script to run. This should be a script that, when executed,
+# calls ctrlpad.run_application().
+APP="ctrlpad_test.py"
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+# Optional arguments to the application. Common examples include:
+#   -f      for running in fullscreen mode
+#   -c      for hiding the mouse cursor (useful on touchscreen devices)
+#   -g WxH  for setting the window size when _not_ running in fullscreen mode
+#           (W and H are the height in pixels, respectively)
+#   -r 30   for limiting the UI rendering framerate
+#   -G 1.3  for specifying a Gamma correction factor for all colors
+#           (values above 1.0 = darker, values below 1.0 = brighter)
+#   -v      for more verbose debugging messages in run.log
+ARGS=""
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+# The X11 display to run on. When specifying this, the application can be
+# started from a remote shell (like SSH).
+#X11_DISPLAY=":0"
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+# Optional configuration of an MPD (Music Player Daemon) server that run.sh
+# shall ensure is running before launching the main application.
+# To do so, two filenames must be provided (as full paths, '~' doesn't work!)
+#   MPD_CONFIG  -> the MPD configuration file name
+#   MPD_PIDFILE -> the PID file used by MPD; this *must* be the same as set up
+#                  as 'pid_file' in the MPD configuration file
+#MPD_CONFIG="$HOME/Music/mpd.conf"
+#MPD_PIDFILE="$HOME/Music/mpd.pid"

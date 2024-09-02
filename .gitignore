@@ -1,3 +1,6 @@
 **/__pycache__
 *.dll
 msdf-atlas-gen*
+run.conf
+run.pid
+run.log
