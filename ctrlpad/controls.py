@@ -588,8 +588,8 @@ class Button(TextControl):
         c = self.get('sat', 0.0)
         l = self.get('light', 0.75)
         lab_text = color.tooklab(color.parse(self.get('color', "000")))
-        lab_light = color.lch2lab(0.98, 0.05, 100)
-        t_light = 0.75
+        lab_light = color.lch2lab(1.0, 0.04, 100)
+        t_light = 0.9
         lab_outline = color.lch2lab(l * 0.5,  c * 0.5, h)
         lab_fill1   = color.lch2lab(l + 0.05, c, h)
         lab_fill2   = color.lch2lab(l - 0.05, c, h)
@@ -602,7 +602,7 @@ class Button(TextControl):
         self.weak_set('active_outline', color.oklab(*color.lerp(lab_outline, lab_light, t_light * 0.5)))
         self.weak_set('active_fill1',   color.oklab(*color.lerp(lab_fill1,   lab_light, t_light)))
         self.weak_set('active_fill2',   color.oklab(*color.lerp(lab_fill2,   lab_light, t_light)))
-        self.weak_set('active_color',   color.oklab(*color.lerp(lab_text,    lab_light, t_light * 0.5)))
+        self.weak_set('active_color',   color.oklab(*color.lerp(lab_text,    lab_light, t_light * 0.25)))
 
     @property
     def active(self):
