@@ -72,11 +72,11 @@ class MPDClient:
         res = dict(self._read_response())
         if "OK" in res:
             self.log.info("connected to %s", res['OK'])
-        else:
-            self.log.error("invalid response from server")
+            self.connected = True
+        elif self.sock:
+            self.log.error("invalid response from server after establishing connection")
             self.sock.close()
             self.sock = None
-        self.connected = True
 
     def disconnect(self):
         "disconnect from MPD"
@@ -132,7 +132,7 @@ class MPDClient:
             self.connect()
         with self.lock:
             for cmd in cmds:
-                if self.cancel or not(self.connected):
+                if self.cancel or not(self.connected) or not(self.sock):
                     return {}
                 if not quiet:
                     self.log.debug("SEND '%s'", cmd)
@@ -169,7 +169,7 @@ class MPDClient:
         while not self.cancel:
             self.async_trigger.wait()
             self.async_trigger.clear()
-            if self.async_cmds:
+            if self.async_cmds and self.connected:
                 cmds = self.async_cmds
                 self.async_cmds = None
                 self.async_result = self.send_commands(*cmds, quiet=self.async_quiet)
