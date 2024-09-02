@@ -380,8 +380,8 @@ class Renderer:
         - blur   = amount of antialiasing or blur (0 = no AA, 1 = normal AA, >1 = blur)
         - offset = offset of the blur
         """
-        colorU = color.parse(colorU)
-        colorL = color.parse(colorL) if not(colorL is None) else colorU
+        colorU = color.finalize(colorU)
+        colorL = color.finalize(colorL) if not(colorL is None) else colorU
         if len(self.data) >= self.max_vbo_items: self.flush()
         w = (x1 - x0) * 0.5
         h = (y1 - y0) * 0.5
@@ -433,8 +433,8 @@ class Renderer:
         - align  = horizontal alignment (0=left, 1=right, 2=center)
         """
         self.set_texture(self.font.atlas)
-        colorU = color.parse(colorU)
-        colorL = color.parse(colorL) if not(colorL is None) else colorU
+        colorU = color.finalize(colorU)
+        colorL = color.finalize(colorL) if not(colorL is None) else colorU
         if align:
             x -= self.font.width(text, size) / align
         prev = 0

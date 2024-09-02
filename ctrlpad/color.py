@@ -7,8 +7,6 @@ of normalized floating point sRGB values.
 import logging
 import math
 
-__all__ = ['import']
-
 _importcache = {}
 
 def parse(c):
@@ -104,6 +102,20 @@ def tooklab(c):
             1.9779984951 * l_ - 2.4285922050 * m_ + 0.4505937099 * s_,
             0.0259040371 * l_ + 0.7827717662 * m_ - 0.8086757660 * s_)
 
+
+###############################################################################
+
+_global_gamma_exp = 1.0
+
+def set_global_gamma(gamma: float):
+    "set global gamma correction"
+    global _global_gamma_exp
+    _global_gamma_exp = gamma
+
+def finalize(c):
+    "parse and apply global gamma to a color"
+    c = parse(c)
+    return (c[0] ** _global_gamma_exp, c[1] ** _global_gamma_exp, c[2] ** _global_gamma_exp, c[3])
 
 ###############################################################################
 

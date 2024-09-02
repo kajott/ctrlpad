@@ -11,6 +11,7 @@ __all__ = ['run_application']
 from .sdl import GLAppWindow, Cursor
 from .opengl import gl
 from .renderer import Renderer
+from .color import set_global_gamma
 from ctrlpad.controls import merge_time, ControlEnvironment, TabSheet
 
 
@@ -91,6 +92,8 @@ def run_application(title: str, init_func, **toplevel_kwargs):
     parser.add_argument("-g", "--geometry", metavar="WxH", default=(1024, 600),
                         type=lambda s: tuple(map(int, s.lower().split('x', 1))),
                         help="set initial window size")
+    parser.add_argument("-G", "--gamma", type=float, default=1.0,
+                        help="set global gamma correction")
     parser.add_argument("-D", "--data-dir", metavar="DIR", default="data",
                         help="set font data directory [default: %(default)s]")
     parser.add_argument("-F", "--primary-font", metavar="NAME", default="bahn",
@@ -106,6 +109,7 @@ def run_application(title: str, init_func, **toplevel_kwargs):
         format='%(asctime)s | %(name)-20s | %(levelname)-8s | %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
     )
+    color.set_global_gamma(args.gamma)
 
     app = CtrlPadAppWindow(*args.geometry, title, fullscreen=args.fullscreen, fps_limit=args.fps_limit)
     app.env = ControlEnvironment(app, Renderer())
