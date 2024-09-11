@@ -7,6 +7,7 @@ from ctrlpad.mpd import MPDClient, MPDControl
 from ctrlpad.controls import bind, ControlEnvironment, GridLayout, Label, Button
 import ctrlpad.clock
 import ctrlpad.crossbar
+from ctrlpad.util import WebRequest
 
 
 def init_app(env: ControlEnvironment):
@@ -17,7 +18,7 @@ def init_app(env: ControlEnvironment):
 
     page.locate(8,3)
     page.pack(2,2, Button("Play BGM")).cmd = lambda e,b: \
-        mpd.send_commands(*MPDClient.shuffle_folders("calm", "semicalm", "trance"))
+        mpd.send_commands(*MPDClient.shuffle_folders("BGM", "calm", "semicalm", "trance"))
     page.pack(2,2, Button("Play Demo-vibes")).cmd = lambda e,b: \
         mpd.send_commands(*MPDClient.shuffle_folders("_mixes"))
     page.pack(2,2, Button("Play Old-school")).cmd = lambda e,b: \
@@ -32,6 +33,22 @@ def init_app(env: ControlEnvironment):
     page.pack(1,1, mpd.mpd.create_fade_button(5.0, "5s"))
     page.pack(1,1, mpd.mpd.create_fade_button(10.0, "10s"))
     page.add_group_label("FADE")
+
+    page.locate(8,6)
+    weather_button = page.pack(5,1, Button("How's the weather in Berlin?"))
+    page.newline()
+    weather_info = page.pack(5,1, Label("click the button above"))
+    @bind(weather_button)
+    def cmd(*_):
+        web = WebRequest("https://api.open-meteo.com/v1/forecast", get_data={
+            'latitude': 52.5373,
+            'longitude': 15.53,
+            'current': 'temperature_2m'
+        })
+        if web.response_json:
+            weather_info.set_text(f"{web.response_json['current']['temperature_2m']:.1f}{web.response_json['current_units']['temperature_2m']}")
+        else:
+            weather_info.set_text("weather request failed :(")
 
     # ---------------------------------------------------------------------
 

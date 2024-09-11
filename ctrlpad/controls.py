@@ -37,7 +37,7 @@ def merge_time(a, b):
     return min(a, b)
 
 ###############################################################################
-# MARK: ControlEnvironemnt
+# MARK: ControlEnvironment
 
 class ControlEnvironment:
     """
