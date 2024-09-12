@@ -90,6 +90,7 @@ def init_app(env: ControlEnvironment):
 
     xbar = ctrlpad.crossbar.Crossbar(8, 8)
     #xbar = ctrlpad.crossbar.ExtronCrossbar("localhost", 2323)
+    #xbar = ctrlpad.crossbar.GefenCrossbar("COM1:")
 
     # https://keyj.emphy.de/photos/deadline2023/dl23_videosetup.png
     page = xbar.add_ui_page(env.toplevel, input_names={

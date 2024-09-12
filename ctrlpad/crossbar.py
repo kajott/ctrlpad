@@ -7,12 +7,18 @@ import socket
 import threading
 import time
 
+try:
+    import serial
+except ImportError:
+    serial = None
+
 from .controls import bind, ControlEnvironment, Control, GridLayout, TabSheet, Button, Label
 
 __all__ = [
     'Crossbar',
     'LightwareCrossbar',
     'ExtronCrossbar',
+    'GefenCrossbar',
 ]
 
 ###############################################################################
@@ -20,9 +26,15 @@ __all__ = [
 class Crossbar:
     "base class for controlling video matrices ('crossbars')"
 
+    # device defaults
+    default_num_inputs  = 0           # 0 = can be auto-detected on connect
+    default_num_outputs = 0           # 0 = can be auto-detected on connect
+    default_input_name_scheme  = '1'  # '1' = numbers, 'A' = letters
+    default_output_name_scheme = '1'  # '1' = numbers, 'A' = letters
+
     def __init__(self, num_inputs: int = 0, num_outputs: int = 0, name: str = None):
-        self.num_inputs = num_inputs
-        self.num_outputs = num_outputs
+        self.num_inputs  = num_inputs  or self.default_num_inputs
+        self.num_outputs = num_outputs or self.default_num_outputs
         self.log = logging.getLogger(name or self.__class__.__name__)
         self.result = None
 
@@ -123,9 +135,9 @@ class Crossbar:
         half = len(format) // 2
         return format[:half] + s_num + format[half:] + "\n" + name
 
-    def create_ui(self, input_scheme: str = '1', output_scheme: str = '1',
-                        input_names=None,        output_names=None,
-                        input_format=None,       output_format=None) -> GridLayout:
+    def create_ui(self, input_scheme=None, output_scheme=None,
+                        input_names=None,  output_names=None,
+                        input_format=None, output_format=None) -> GridLayout:
         """
         Create a GridLayout for controlling the crossbar.
 
@@ -150,14 +162,14 @@ class Crossbar:
 
         page.locate(0,1)
         self.btn_in = [page.pack(2,2,
-            Button(self.schemed_name(input_scheme, i, input_names, input_format),
+            Button(self.schemed_name(input_scheme or self.default_input_name_scheme, i, input_names, input_format),
                    manual=True, cmd=self._on_in_btn_click))
             for i in range(1, self.num_inputs+1)]
         page.add_group_label("INPUTS")
 
         page.locate(0,4)
         self.btn_out = [page.pack(2,2,
-            Button(self.schemed_name(output_scheme, i, output_names, output_format),
+            Button(self.schemed_name(output_scheme or self.default_output_name_scheme, i, output_names, output_format),
                    toggle=True))
             for i in range(1, self.num_outputs+1)]
         page.add_group_label("OUTPUTS")
@@ -311,6 +323,93 @@ class TCPIPCrossbar(Crossbar):
         "callback after receiving a response line; overridden in derived classes"
         pass
 
+class SerialCrossbar(Crossbar):
+    "base class for controlling video matrices via serial port"
+
+    # connection configuration is (partially) overridden by derived classes
+    baudrate    = 9600  # 300, 1200, 2400, 4800, 9600, 19200, 38400, ...
+    databits    = 8     # 5, 6, 7, 8
+    parity      = 'N'   # 'N', 'E', 'O', 'M', 'S'
+    stopbits    = 1     # 1, 1.5, 2
+    flowcontrol = None  # None, "XON/XOFF", "RTS/CTS", "DSR/DTR"
+    terminator  = '\n'  # line terminator (for the readline() method)
+
+    def __init__(self, port: str = "loop://", num_inputs: int = 0, num_outputs: int = 0, timeout: float = 0.1, name: str = None):
+        if not name:
+            if "://" in port:
+                a, b = port.split("://")
+                name = b or a
+            else:
+                name = port.strip(":/").rsplit('/')[-1]
+            name = self.__class__.__name__.replace("Crossbar","") + "-" + name
+        super().__init__(num_inputs, num_outputs, name=name)
+        self.port = port
+        self.timeout = timeout
+        self.conn = None
+        self.connect()
+
+    def connect(self):
+        if self.conn: return
+        if not serial:
+            self.conn = True
+            return self.log.error("PySerial not available, can't use serial port crossbars")
+        fc = (self.flowcontrol or "").lower()
+        try:
+            self.conn = serial.serial_for_url(self.port,
+                            baudrate=self.baudrate, bytesize=self.databits, parity=self.parity, stopbits=self.stopbits,
+                            xonxoff=(("xon" in fc) or ("xoff" in fc)),
+                            rtscts=(("rts" in fc) or ("cts" in fc)),
+                            dsrdtr=(("dsr" in fc) or ("dtr" in fc)),
+                            timeout=self.timeout, write_timeout=self.timeout)
+        except EnvironmentError as e:
+            return self.log.error("connection failed - %s", str(e))
+        self.log.info("connection established")
+        self.on_connect()
+
+    def disconnect(self):
+        if not self.conn: return
+        self.on_disconnect()
+        self.conn.close()
+        self.conn = False
+        self.log.info("disconnected")
+
+    def send(self, data):
+        if not serial: return
+        if not self.conn: self.connect()
+        if not self.conn: return
+        if isinstance(data, str):
+            data = data.encode('utf-8')
+        self.log.debug("SEND %r", data)
+        try:
+            self.conn.write(data)
+        except EnvironmentError as e:
+            return self.log.error("failed to send data - %s", str(e))
+
+    def readline(self, decode: bool = False):
+        if not(serial) or not(self.conn):
+            data = b''
+        else:
+            try:
+                data = self.conn.read_until(self.terminator.decode())
+            except EnvironmentError:
+                pass
+        self.log.debug("RECV %r", data)
+        if decode:
+            data = data.decode('utf-8', 'replace')
+        return data
+
+    def discard_input(self):
+        while serial and self.conn and self.conn.in_waiting:
+            self.conn.read(1)
+
+    def on_connect(self):
+        "callback after connecting; overridden in derived classes"
+        self.notify_success()
+
+    def on_disconnect(self):
+        "callback before disconnecting; overridden in derived classes"
+        pass
+
 ###############################################################################
 
 class LightwareCrossbar(TCPIPCrossbar):
@@ -359,6 +458,18 @@ class ExtronCrossbar(TCPIPCrossbar):
             self.send(b'%d*%d!' % (ties[0][0]+1, ties[0][1]+1))
         else:
             self.send(b'\x1b+Q' + b''.join(b'%d*%d!' % tie for tie in self.flatten_ties(ties)) + b'\r\n')
+
+class GefenCrossbar(SerialCrossbar):
+    "crossbar switch using the Gefen DVI Matrix RS232 protocol"
+    # see: https://gefen.com/wp-content/uploads/ext-dvi-848_a8-manual.pdf
+    baudrate = 19200
+    default_input_name_scheme = 'A'
+    default_num_inputs = 8
+    default_num_outputs = 8
+
+    def on_tie(self, ties):
+        self.discard_input()
+        self.send(b''.join(bytes([pin+64, pout+48]) for pin, pout in self.flatten_ties(ties)))
 
 ###############################################################################
 
