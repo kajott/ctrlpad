@@ -1,11 +1,12 @@
 # SPDX-FileCopyrightText: 2024 Martin J. Fiedler <keyj@emphy.de>
 # SPDX-License-Identifier: MIT
 
-__all__ = ['WebRequest']
+__all__ = ['WebRequest', 'safecall']
 
 import json
 import logging
 import time
+import traceback
 import urllib.parse
 import urllib.request
 
@@ -85,3 +86,16 @@ class WebRequest:
             self.response_json = json.loads(self.response_data.decode('utf-8', 'replace'))
         except json.JSONDecodeError:
             pass
+
+###############################################################################
+# MARK: safecall
+
+def safecall(func, *args, **kwargs):
+    try:
+        return func(*args, **kwargs)
+    except Exception as e:
+        lines = traceback.format_list(traceback.extract_tb(e.__traceback__)[1:]) \
+              + traceback.format_exception_only(e)
+        logging.getLogger("Exception").error("%s in %s:\n/ %s\n\\",
+            e.__class__.__name__, func.__name__,
+            "".join(lines).rstrip().replace("\n", "\n| "))

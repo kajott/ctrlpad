@@ -6,6 +6,7 @@ import logging
 from .sdl import GLAppWindow
 from .renderer import Renderer
 from . import color
+from . import util
 
 __all__ = [
     'bind', 'merge_time',
@@ -625,7 +626,8 @@ class Button(TextControl):
             self.delayed_click -= 1
         if self.delayed_click == 0:
             self.delayed_click = None
-            if self.cmd: self.cmd(env, self)
+            if self.cmd:
+                util.safecall(self.cmd, env, self)
             if not self.get('toggle'):
                 self.state = None
 
