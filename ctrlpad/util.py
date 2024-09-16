@@ -14,7 +14,7 @@ import urllib.request
 
 class WebRequest:
     "convenience wrapper around urllib.request"
-    def __init__(self, url: str, get_data: dict = {}, post_data: dict = {}, json_data = None, headers: dict = {}, timeout: float = 0.1, quiet: bool = False):
+    def __init__(self, url: str, get_data: dict = {}, post_data: dict = {}, json_data = None, headers: dict = {}, timeout: float = 0.5, quiet: bool = False):
         """
         Send a web request and read the response, with timeout and automatic
         JSON en-/decoding.
@@ -33,6 +33,7 @@ class WebRequest:
         - request_headers:  dictionary with all headers specified to urllib
         - request_data:     POST data (bytes, not str)
         - response_status:  response status code (HTTP code)
+        - response_timeout: True if the response is incomplete due to a timeout
         - response_headers: received response headers
         - response_data:    response data (bytes, not str)
         - response_json:    decoded response JSON (assuming UTF-8 character set),
@@ -65,6 +66,7 @@ class WebRequest:
         self.response_headers = {}
         self.response_data = bytes()
         self.response_json = None
+        self.response_timeout = False
         if timeout:
             timeout += time.time()
         try:
@@ -75,6 +77,8 @@ class WebRequest:
                     block = f.read(4096)
                     if not block: break
                     self.response_data += block
+                else:
+                    self.response_timeout = True
         except EnvironmentError as e:
             log.error("%s request to %s failed - %s", self.request_method, self.request_url, str(e))
         try:
