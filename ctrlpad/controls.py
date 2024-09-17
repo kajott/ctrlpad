@@ -455,7 +455,8 @@ class TabSheet(TextControl):
             else:
                 current_page = page
         if not current_page:
-            return log.warning("no active page in TabSheet")
+            if self.children: log.warning("no active page in TabSheet")
+            return
         # active tab button
         self._draw_button(env, current_page, y0)
         # page outline (if any) - drawn as lines to save on rasterized area
