@@ -49,12 +49,25 @@ class ControlEnvironment:
     It also contains other useful "global" functionality for layouting.
     """
 
-    ref_scale = 1000  # pixels on the abstract reference screen
+    ref_scale_base = 1000.0  # pixels on the abstract reference screen
 
     def __init__(self, window: GLAppWindow, renderer: Renderer):
+        self.ref_scale = self.ref_scale_base
         self.window = window
         self.renderer = renderer
         self.draw_time = 0
+        self.update_scale()
+
+    def set_global_scale(self, scale: float = 1.0):
+        """
+        Set the global scale of the controls and fonts.
+
+        The default (1.0) is OK for grids with ~16x9 cells and 2x2-sized
+        buttons. If you want to use significantly more on a larger screen,
+        consider reducing the scale by calling this function with a value
+        below 1.0.
+        """
+        self.ref_scale = self.ref_scale_base / scale
         self.update_scale()
 
     def update_scale(self):
