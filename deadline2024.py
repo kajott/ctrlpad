@@ -78,8 +78,8 @@ def init_app(env: ControlEnvironment):
         "ATEM IN 4",
         "ATEM IN 5",
         "Stream Team",
-        "Main Screen",
         "Bar Screen",
+        "Main Screen",
     ], input_format="\u203a\u2039", output_format="\u2039\u203a")
 
     # there's still a bit of space left in the lower-left end of the page,
