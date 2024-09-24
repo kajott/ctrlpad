@@ -17,14 +17,14 @@ from . import color
 class MPDClient:
     "MPD (Music Player Daemon) client"
 
-    def __init__(self, ip: str = "localhost", port: int = 6600, timeout: float = 0.1, name: str = None):
+    def __init__(self, ip: str = "localhost", port: int = 6600, timeout: float = 0.2, name: str = None):
         self.log = logging.getLogger(name or ("MPD-" + ip))
         self.ip = ip
         self.port = port
         self.timeout = timeout
         self.connected = False
         self.sock = None
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()
         self.cancel = False
         self.async_cmds = []
         self.async_quiet = False
@@ -128,9 +128,11 @@ class MPDClient:
 
     def send_commands(self, *cmds, allow_reconnect: bool = True, quiet: bool = False) -> dict:
         "send one or more commands synchronously; return last command's status"
-        if not self.sock:
-            self.connect()
         with self.lock:
+            if not self.sock:
+                self.connect()
+            if not self.sock:
+                return {}
             for cmd in cmds:
                 if self.cancel or not(self.connected) or not(self.sock):
                     return {}
@@ -466,7 +468,9 @@ class MPDControl(Control):
             return next_frame_after
 
     def on_click(self, env: ControlEnvironment, x: int, y: int):
-        if not self.mpd.connected: return
+        if not self.mpd.connected:
+            self.mpd.connect()
+            return
         for btn in self.button_set:
             x0,y0, x1,y1 = self.button_rect[btn]
             if (x0 <= x < x1) and (y0 <= y < y1):
