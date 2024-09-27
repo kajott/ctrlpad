@@ -17,7 +17,7 @@ from . import color
 class MPDClient:
     "MPD (Music Player Daemon) client"
 
-    def __init__(self, ip: str = "localhost", port: int = 6600, timeout: float = 0.2, name: str = None):
+    def __init__(self, ip: str = "localhost", port: int = 6600, timeout: float = 0.25, name: str = None):
         self.log = logging.getLogger(name or ("MPD-" + ip))
         self.ip = ip
         self.port = port
@@ -26,6 +26,9 @@ class MPDClient:
         self.sock = None
         self.lock = threading.RLock()
         self.cancel = False
+        self.max_latency = 0.0
+        self.backoff = 1.0
+        self.next_auto_reconnect = None
         self.async_cmds = []
         self.async_quiet = False
         self.async_result = None
@@ -68,10 +71,14 @@ class MPDClient:
         except EnvironmentError as e:
             self.log.error("connection failed - %s", str(e))
             self.sock = None
+            self.next_auto_reconnect = time.time() + self.backoff
+            self.backoff *= 2.0
             return
         res = dict(self._read_response())
         if "OK" in res:
             self.log.info("connected to %s", res['OK'])
+            self.backoff = 1.0
+            self.next_auto_reconnect = None
             self.connected = True
         elif self.sock:
             self.log.error("invalid response from server after establishing connection")
@@ -87,7 +94,15 @@ class MPDClient:
         except EnvironmentError:
             pass
         self.sock = None
+        self.next_auto_reconnect = time.time() + self.backoff
+        self.backoff *= 2.0
         self.log.info("disconnected from %s:%d", self.ip, self.port)
+
+    def check_auto_reconnect(self):
+        "reconnect if the reconnect back-off timeout has been reached"
+        if not(self.sock) and self.next_auto_reconnect and (time.time() >= self.next_auto_reconnect):
+            self.log.debug("attempting automatic reconnection")
+            self.connect()
 
     def _read_response(self, quiet: bool = False):
         if not self.sock: return
@@ -140,6 +155,7 @@ class MPDClient:
                     cmd = f'setvol {self.target_volume}'
                 if not quiet:
                     self.log.debug("SEND '%s'", cmd)
+                t0 = time.time()
                 try:
                     self.sock.sendall(cmd.encode('utf-8') + b'\n')
                 except EnvironmentError:
@@ -147,6 +163,10 @@ class MPDClient:
                     if allow_reconnect:
                         return self.send_commands(*cmds, allow_reconnect=False, quiet=quiet)
                 res = dict(self._read_response(quiet=quiet))
+                dt = time.time() - t0
+                if dt > self.max_latency:
+                    self.max_latency = dt
+                    self.log.info("highest response latency: %.1f ms", dt * 1000)
                 if (cmd == 'status') and res:
                     self.current_volume = res.get('volume', self.current_volume)
                     self.playing = res.get('state') == 'play'
@@ -464,8 +484,9 @@ class MPDControl(Control):
         if self.waiting_for_data:
             env.window.request_frames(1)
         self.was_connected = self.mpd.connected
+        self.mpd.check_auto_reconnect()
         if self.mpd.connected:
-            return next_frame_after
+            return next_frame_after if self.was_connected else 0.0
 
     def on_click(self, env: ControlEnvironment, x: int, y: int):
         if not self.mpd.connected:
