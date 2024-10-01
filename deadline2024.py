@@ -13,8 +13,8 @@ def init_app(env: ControlEnvironment):
     # instantiate video matrix controller
     xbar = crossbar.ExtronCrossbar("10.0.1.88", num_inputs=8, num_outputs=8)
     #xbar = crossbar.GefenCrossbar("/dev/ttyUSB0")
-    def add_xbar_button(page, label, *ties):
-        page.pack(2,2, Button(label)).cmd = lambda e,b: xbar.tie(*ties)
+    def add_xbar_button(page, label, *ties, cmd=lambda:None):
+        page.pack(2,2, Button(label)).cmd = lambda e,b: (xbar.tie(*ties), cmd())
 
     # create first page with a huge studio clock and an MPD controller
     page = env.toplevel.add_page(GridLayout(16,8), "Home")
@@ -46,16 +46,21 @@ def init_app(env: ControlEnvironment):
     # create compo page
     page = env.toplevel.add_page(GridLayout(16,9), "Compo")
 
+    mode_label = page.put(12,0, 4,4, Label("", size=300))
+    def mode(hz: int):
+        mode_label.set('color', "#f00" if (hz != 60) else "#0a04")
+        mode_label.set_text(str(hz))
+
     page.locate(0,1)
-    add_xbar_button(page, "Compo1 Direct",    (8,6), (1,5,7,8))
-    add_xbar_button(page, "Compo2 Direct",    (8,6), (2,5,7,8))
-    add_xbar_button(page, "Slides Direct",    (8,6), (3,5,7,8))
-    add_xbar_button(page, "Oldschool Direct", (8,6), (4,5,7,8))
+    add_xbar_button(page, "Compo1 Direct",    (8,6), (1,5,7,8), cmd=lambda:mode(50))
+    add_xbar_button(page, "Compo2 Direct",    (8,6), (2,5,7,8), cmd=lambda:mode(50))
+    add_xbar_button(page, "Slides Direct",    (8,6), (3,5,7,8), cmd=lambda:mode(50))
+    add_xbar_button(page, "Oldschool Direct", (8,6), (4,5,7,8), cmd=lambda:mode(50))
     page.add_group_label("50Hz")
     page.put(0,3, 8,1, Label("Set ATEM to IN 5 before going 50 Hz!"))
     page.put(0,4, 8,1, Label("Only switch Hz while Slides are shown!"))
     page.locate(9,1)
-    add_xbar_button(page, "Back to ATEM", (1,3), (2,4), (3,5), (8,6,7,8))
+    add_xbar_button(page, "Back to ATEM", (1,3), (2,4), (3,5), (8,6,7,8), cmd=lambda:mode(60))
     page.add_group_label("60Hz")
 
     # ---------------------------------------------------------------------
@@ -86,7 +91,7 @@ def init_app(env: ControlEnvironment):
     # so put a few potentially useful macros there
     add_xbar_button(page, "Default Monitors", (1,1), (2,2))
     add_xbar_button(page, "Default ATEM", (1,3),(2,4),(3,5))
-    add_xbar_button(page, "ATEM to Screens", (8,6,7,8))
+    add_xbar_button(page, "ATEM to Screens", (8,6,7,8), cmd=lambda:mode(60))
     page.add_group_label("MACROS")
 
 

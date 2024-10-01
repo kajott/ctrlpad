@@ -120,6 +120,10 @@ class Control:
         else:
             return self.style.get(key, default)
 
+    def set(self, key: str, value):
+        "set a style parameter"
+        self.style[key] = value
+
     def weak_set(self, key: str, value):
         "set a style parameter, unless it's already defined"
         if not(key in self.style):
@@ -508,7 +512,7 @@ class Label(TextControl):
     Text label to be put alongside other controls
     """
 
-    def __init__(self, text, cmd=None, **style):
+    def __init__(self, text, **style):
         """
         Instantiate the label with the following (mostly optional) parameters:
         [* = can be different for each control state; ~ = in abstract size units]
