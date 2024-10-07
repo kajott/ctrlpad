@@ -455,7 +455,7 @@ class ExtronCrossbar(TCPIPCrossbar):
 
     def on_tie(self, ties):
         if (len(ties) == 1) and (len(ties[0]) == 2):
-            self.send(b'%d*%d!' % (ties[0][0]+1, ties[0][1]+1))
+            self.send(b'%d*%d!' % (ties[0][0], ties[0][1]))
         else:
             self.send(b'\x1b+Q' + b''.join(b'%d*%d!' % tie for tie in self.flatten_ties(ties)) + b'\r\n')
 
