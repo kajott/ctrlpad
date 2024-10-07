@@ -11,7 +11,8 @@ from ctrlpad.util import WebRequest
 
 def init_app(env: ControlEnvironment):
     # instantiate video matrix controller
-    xbar = crossbar.ExtronCrossbar("10.0.1.88", num_inputs=8, num_outputs=8)
+    #xbar = crossbar.ExtronCrossbar("172.16.0.88", num_inputs=8, num_outputs=8)
+    xbar = crossbar.ExtronSerialCrossbar("/dev/ttyUSB0")
     #xbar = crossbar.GefenCrossbar("/dev/ttyUSB0")
     def add_xbar_button(page, label, *ties, cmd=lambda:None):
         page.pack(2,2, Button(label)).cmd = lambda e,b: (xbar.tie(*ties), cmd())

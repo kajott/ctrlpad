@@ -459,6 +459,17 @@ class ExtronCrossbar(TCPIPCrossbar):
         else:
             self.send(b'\x1b+Q' + b''.join(b'%d*%d!' % tie for tie in self.flatten_ties(ties)) + b'\r\n')
 
+class ExtronSerialCrossbar(SerialCrossbar):
+    default_num_inputs = 8
+    default_num_outputs = 8
+
+    def on_tie(self, ties):
+        self.discard_input()
+        if (len(ties) == 1) and (len(ties[0]) == 2):
+            self.send(b'%d*%d!' % (ties[0][0], ties[0][1]))
+        else:
+            self.send(b'\x1b+Q' + b''.join(b'%d*%d!' % tie for tie in self.flatten_ties(ties)) + b'\r\n')
+
 class GefenCrossbar(SerialCrossbar):
     "crossbar switch using the Gefen DVI Matrix RS232 protocol"
     # see: https://gefen.com/wp-content/uploads/ext-dvi-848_a8-manual.pdf
