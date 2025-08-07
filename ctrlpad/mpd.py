@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2024 Martin J. Fiedler <keyj@emphy.de>
+# SPDX-FileCopyrightText: 2024-2025 Martin J. Fiedler <keyj@emphy.de>
 # SPDX-License-Identifier: MIT
 
 import logging
@@ -298,6 +298,13 @@ class MPDClient:
              +(['single 1', 'repeat 0'] if single else ['single 0', 'repeat 1']) \
              + [f'add "{f}"' for f in folders] \
              + ['shuffle', 'play']
+
+    @staticmethod
+    def single_file(path: str, loop: bool = False):
+        "generate commands to play a single file"
+        return ['stop', '.resetvol', 'clear', 'random 0'] \
+             +(['single 0', 'repeat 1'] if loop else ['single 1', 'repeat 0']) \
+             + [f'add "{path}"', 'play']
 
     def _restore_volume_if_not_playing_and(self, cmd: str):
         if self.playing:
