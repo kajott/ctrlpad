@@ -7,6 +7,7 @@ from ctrlpad import controls, clock, crossbar
 from ctrlpad.mpd import MPDClient, MPDControl
 from ctrlpad.controls import ControlEnvironment, GridLayout, Label, Button
 from ctrlpad.util import WebRequest
+from ctrlpad.midi import SendMIDI, NoteOn, NoteOff, USBMIDI
 
 
 def init_app(env: ControlEnvironment):
@@ -22,6 +23,10 @@ def init_app(env: ControlEnvironment):
     page.pack(8,8, clock.Clock())
     mpd = page.pack(8,3, MPDControl(MPDClient()))
 
+    # set up a convenient helper for MIDI note sending from MPD client command lists
+    def midi_send(cmd, channel=1, note=60):
+        return lambda: SendMIDI(USBMIDI, cmd(channel, note), silent=True)
+
     # a few buttons for playing pre-defined playlists using MPD
     page.locate(8,3)
     page.pack(2,2, Button("Play BGM")).cmd = lambda e,b: \
@@ -34,7 +39,7 @@ def init_app(env: ControlEnvironment):
         mpd.send_commands(*MPDClient.shuffle_folders("banger", single=True))
     page.locate(8,6)
     page.pack(2,2, Button("JINGLE (LAUT)")).cmd = lambda e,b: \
-        mpd.send_commands(*MPDClient.single_file("_special/jingle.mp3", loop=False))
+        mpd.send_commands(*MPDClient.single_file("_special/jingle.mp3", loop=False, notify=midi_send(NoteOn), after=midi_send(NoteOff)))
     page.pack(2,2, Button("Cocio & Finsprit")).cmd = lambda e,b: \
         mpd.send_commands(*MPDClient.single_file("_special/cocio_finsprit.mp3", loop=True))
     page.pack(2,2, Button("Tech Issues")).cmd = lambda e,b: \

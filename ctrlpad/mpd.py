@@ -151,6 +151,11 @@ class MPDClient:
             for cmd in cmds:
                 if self.cancel or not(self.connected) or not(self.sock):
                     return {}
+                if not cmd:
+                    continue
+                if not isinstance(cmd, str):
+                    cmd()
+                    continue
                 if cmd == '.resetvol':
                     cmd = f'setvol {self.target_volume}'
                 if not quiet:
@@ -300,11 +305,11 @@ class MPDClient:
              + ['shuffle', 'play']
 
     @staticmethod
-    def single_file(path: str, loop: bool = False):
+    def single_file(path: str, loop: bool = False, notify=None, after=None):
         "generate commands to play a single file"
         return ['stop', '.resetvol', 'clear', 'random 0'] \
              +(['single 0', 'repeat 1'] if loop else ['single 1', 'repeat 0']) \
-             + [f'add "{path}"', 'play']
+             + [f'add "{path}"', notify, 'play', after]
 
     def _restore_volume_if_not_playing_and(self, cmd: str):
         if self.playing:
