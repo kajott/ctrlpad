@@ -7,7 +7,7 @@ from typing import Sequence
 
 __all__ = ['SendMIDI', 'USBMIDI', 'NoteOn', 'NoteOff']
 
-USBMIDI = ("usb", "ch345")  # common device names of USB MIDI interfaces
+USBMIDI = ("usb", "ch345", "fasttrack")  # common device names of USB MIDI interfaces
 
 def SendMIDI(port: int|str|Sequence[str] = 0, msg: Sequence[int]|bytes = [], silent: bool = False):
     """
@@ -37,6 +37,7 @@ def SendMIDI(port: int|str|Sequence[str] = 0, msg: Sequence[int]|bytes = [], sil
         port = idx[0]
     if not msg:
         return True
+    #log.error(f"{port=} {msg=}")
     try:
         out.open_port(port)
         out.send_message(msg)
@@ -60,7 +61,7 @@ def _note_on_off(channel: int, note: int|str, velocity: int, _cmd: int):
             raise ValueError(f"invalid note '{note}'")
     return [_cmd + min(max(channel, 1), 16) - 1, min(max(note, 0), 127), min(max(velocity, 0), 127)]
 
-def NoteOn(channel: int = 1, note: int|str = 60, velocity: int = 112):
+def NoteOn(channel: int = 1, note: int|str = 60, velocity: int = 127):
     """
     Generate a MIDI Note On command.
     - channel:  MIDI channel (1..16)
@@ -69,7 +70,7 @@ def NoteOn(channel: int = 1, note: int|str = 60, velocity: int = 112):
     """
     return _note_on_off(channel, note, velocity, 0x90)
 
-def NoteOff(channel: int = 1, note: int|str = 60, velocity: int = 0):
+def NoteOff(channel: int = 1, note: int|str = 60, velocity: int = 127):
     """
     Generate a MIDI Note Off command.
     - channel:  MIDI channel (1..16)
@@ -79,5 +80,5 @@ def NoteOff(channel: int = 1, note: int|str = 60, velocity: int = 0):
     return _note_on_off(channel, note, velocity, 0x80)
 
 if __name__ == "__main__":
-    SendMIDI(port=("usb", "ch345"), msg=NoteOn(1, "C4"))
-    SendMIDI(port=("usb", "ch345"), msg=NoteOff(1, "C4"))
+    SendMIDI(USBMIDI, msg=NoteOn(1, "C4"))
+    SendMIDI(USBMIDI, msg=NoteOff(1, "C4"))

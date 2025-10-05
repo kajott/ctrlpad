@@ -24,8 +24,15 @@ def init_app(env: ControlEnvironment):
     mpd = page.pack(8,3, MPDControl(MPDClient()))
 
     # set up a convenient helper for MIDI note sending from MPD client command lists
+    midi_target = USBMIDI
+    #midi_target = "WINSTON 132:2"  # via rtpmidi
     def midi_send(cmd, channel=1, note=60):
-        return lambda: SendMIDI(USBMIDI, cmd(channel, note), silent=True)
+        return lambda: SendMIDI(midi_target, cmd(channel, note), silent=True)
+    def midi_send_onoff(channel=1, note=60):
+        def do(*args):
+            SendMIDI(midi_target, NoteOn(channel, note), silent=True)
+            SendMIDI(midi_target, NoteOff(channel, note), silent=True)
+        return do
 
     # a few buttons for playing pre-defined playlists using MPD
     page.locate(8,3)
@@ -37,14 +44,25 @@ def init_app(env: ControlEnvironment):
         mpd.send_commands(*MPDClient.shuffle_folders("retro"))
     page.pack(2,2, Button("Play Single Banger")).cmd = lambda e,b: \
         mpd.send_commands(*MPDClient.shuffle_folders("banger", single=True))
+
+    # remotely triggered jingles
     page.locate(8,6)
-    page.pack(2,2, Button("JINGLE (LAUT)")).cmd = lambda e,b: \
-        mpd.send_commands(*MPDClient.single_file("_special/jingle.mp3", loop=False, notify=midi_send(NoteOn), after=midi_send(NoteOff)))
-    page.pack(2,2, Button("Cocio & Finsprit")).cmd = lambda e,b: \
+    page.pack(2,1, Button("Newschool")).cmd = midi_send_onoff(note=1)
+    page.pack(2,1, Button("Oldschool")).cmd = midi_send_onoff(note=2)
+    page.newline()
+    page.pack(4,1, Button("STOP")).cmd = midi_send_onoff(note=3)
+    page.add_group_label("JINGLE TRIGGERS")
+
+    # locally played jingles
+    page.locate(12,6)
+    #page.pack(2,2, Button("JINGLE (LAUT)")).cmd = lambda e,b: \
+    #    mpd.send_commands(*MPDClient.single_file("_special/jingle.mp3", loop=False, notify=midi_send(NoteOn), after=midi_send(NoteOff)))
+    page.pack(2,1, Button("Cocio")).cmd = lambda e,b: \
         mpd.send_commands(*MPDClient.single_file("_special/cocio_finsprit.mp3", loop=True))
-    page.pack(2,2, Button("Tech Issues")).cmd = lambda e,b: \
+    page.newline()
+    page.pack(2,1, Button("Techniker")).cmd = lambda e,b: \
         mpd.send_commands(*MPDClient.single_file("_special/techniker.mp3", loop=True))
-    page.add_group_label("JINGLES")
+    page.add_group_label("SPECIAL")
 
     # a set of fade buttons for MPD
     page.locate(14,6)
