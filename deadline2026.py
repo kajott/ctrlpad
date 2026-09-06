@@ -1,0 +1,163 @@
+#!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2024-2026 Martin J. Fiedler <keyj@emphy.de>
+# SPDX-License-Identifier: MIT
+
+import ctrlpad
+from ctrlpad import controls, clock, crossbar
+from ctrlpad.mpd import MPDClient, MPDControl
+from ctrlpad.controls import ControlEnvironment, GridLayout, Label, Button
+from ctrlpad.util import WebRequest
+from ctrlpad.midi import SendMIDI, NoteOn, NoteOff, USBMIDI
+
+
+# set up a convenient helper for MIDI note sending from MPD client command lists
+midi_target = USBMIDI
+#midi_target = "WINSTON 132:2"  # via rtpmidi
+def midi_send(cmd, channel=1, note=60):
+    return lambda: SendMIDI(midi_target, cmd(channel, note), silent=True)
+def midi_send_onoff(channel=1, note=60):
+    def do(*args):
+        SendMIDI(midi_target, NoteOn(channel, note), silent=True)
+        SendMIDI(midi_target, NoteOff(channel, note), silent=True)
+    return do
+
+
+def init_app(env: ControlEnvironment):
+    # instantiate video matrix controller
+    xbar = crossbar.ExtronCrossbar("172.16.0.88", num_inputs=8, num_outputs=8)
+    #xbar = crossbar.ExtronSerialCrossbar("/dev/ttyUSB0")
+    #xbar = crossbar.GefenCrossbar("/dev/ttyUSB0")
+    def add_xbar_button(page, label, *ties, cmd=lambda:None):
+        page.pack(2,2, Button(label)).cmd = lambda e,b: (xbar.tie(*ties), cmd())
+
+    # create first page with a huge studio clock and an MPD controller
+    page = env.toplevel.add_page(GridLayout(16,8), "Home")
+    page.pack(8,8, clock.Clock())
+    mpd = page.pack(8,3, MPDControl(MPDClient()))
+
+    # a few buttons for playing pre-defined playlists using MPD
+    page.locate(8,3)
+    page.pack(2,2, Button("Play BGM")).cmd = lambda e,b: \
+        mpd.send_commands(*MPDClient.shuffle_folders("BGM", "calm", "semicalm", "trance"))
+    page.pack(2,2, Button("Play Demo-vibes")).cmd = lambda e,b: \
+        mpd.send_commands(*MPDClient.shuffle_folders("_mixes"))
+    page.pack(2,2, Button("Play Old-school")).cmd = lambda e,b: \
+        mpd.send_commands(*MPDClient.shuffle_folders("retro"))
+    page.pack(2,2, Button("Play Single Banger")).cmd = lambda e,b: \
+        mpd.send_commands(*MPDClient.shuffle_folders("banger", single=True))
+
+    # a set of fade buttons for MPD
+    def put_fade_group(page):
+        page.locate(14,6)
+        page.pack(1,1, mpd.mpd.create_fade_button(1.0, "1s"))
+        page.pack(1,1, mpd.mpd.create_fade_button(2.0, "2s"))
+        page.newline()
+        page.pack(1,1, mpd.mpd.create_fade_button(5.0, "5s"))
+        page.pack(1,1, mpd.mpd.create_fade_button(10.0, "10s"))
+        page.add_group_label("FADE")
+    put_fade_group(page)
+
+    # MPD update button (rarely used, usually commented out)
+    page.locate(15,0)
+    #page.pack(1,1, Button("U")).cmd = lambda e,b: mpd.send_commands('update')
+
+    # ---------------------------------------------------------------------
+
+    # create jingle page
+    page = env.toplevel.add_page(GridLayout(16,8), "Jingle")
+
+    page.locate(0,1)
+    page.pack(3,2, Button("Newschool")).cmd = midi_send_onoff(note=1)
+    page.newline()
+    page.pack(3,2, Button("Oldschool")).cmd = midi_send_onoff(note=2)
+    page.newline()
+    page.pack(3,2, Button("STOP", hue=20, sat=.1, light=.67)).cmd = midi_send_onoff(note=3)
+    page.add_group_label("REMOTE")
+
+    page.locate(4,1)
+    page.pack(3,2, Button("Newschool")).cmd = lambda e,b: \
+        mpd.send_commands(*MPDClient.single_file("_special/jingle2025.mp3", loop=False))
+    page.newline()
+    page.pack(3,2, Button("Oldschool")).cmd = lambda e,b: \
+        mpd.send_commands(*MPDClient.single_file("_special/jingle2025-oldschool-20sec.mp3", loop=False))
+    page.newline()
+    page.pack(3,2, Button("Short")).cmd = lambda e,b: \
+        mpd.send_commands(*MPDClient.single_file("_special/jingle2025-5sec.mp3", loop=False))
+    page.newline()
+    page.add_group_label("LOCAL")
+
+    page.locate(8,1)
+    page.pack(3,2, Button("Technical\nDifficulties")).cmd = lambda e,b: \
+        mpd.send_commands(*MPDClient.single_file("_special/techniker.mp3", loop=True))
+    page.newline()
+    page.pack(3,2, Button("Cocio &\nFinsprit")).cmd = lambda e,b: \
+        mpd.send_commands(*MPDClient.single_file("_special/cocio_finsprit.mp3", loop=True))
+    page.newline()
+    page.pack(3,2, Button("fr-08\nloader")).cmd = lambda e,b: \
+        mpd.send_commands(*MPDClient.single_file("_special/fr08loader.mp3", loop=True))
+    page.add_group_label("SPECIAL")
+
+    put_fade_group(page)
+    page.locate(14,2)
+    page.pack(2,3, Button("STOP", hue=20, sat=.1, light=.67)).cmd = lambda e, b: mpd.send_commands("stop")
+    page.locate(14,0)
+    page.pack(2,1, Button("Rescan\nFiles", light=.5)).cmd    = lambda e, b: mpd.send_commands("update")
+
+    put_fade_group(page)
+
+    # ---------------------------------------------------------------------
+
+    # create compo page
+    page = env.toplevel.add_page(GridLayout(16,8), "Compo")
+
+    mode_label = page.put(12,0, 4,4, Label("", size=300))
+    def mode(hz: int):
+        mode_label.set('color', "#f00" if (hz != 60) else "#0a04")
+        mode_label.set_text(str(hz))
+
+    page.locate(0,1)
+    add_xbar_button(page, "Compo1 Direct",    (8,6), (1,5,7,8), cmd=lambda:mode(50))
+    add_xbar_button(page, "Compo2 Direct",    (8,6), (2,5,7,8), cmd=lambda:mode(50))
+    add_xbar_button(page, "Slides Direct",    (8,6), (3,5,7,8), cmd=lambda:mode(50))
+    add_xbar_button(page, "Oldschool Direct", (8,6), (4,5,7,8), cmd=lambda:mode(50))
+    page.add_group_label("50Hz")
+    page.put(0,3, 8,1, Label("Set ATEM to IN 5 before going 50 Hz!"))
+    page.put(0,4, 8,1, Label("Only switch Hz while Slides are shown!"))
+    page.locate(9,1)
+    add_xbar_button(page, "Back to ATEM", (1,3), (2,4), (3,5), (8,6,7,8), cmd=lambda:mode(60))
+    page.add_group_label("60Hz")
+
+    # ---------------------------------------------------------------------
+
+    # crossbar controller UI page
+
+    page = xbar.add_ui_page(env.toplevel, input_names=[
+        "Compo1",
+        "Compo2",
+        "Slides",
+        "Old school",
+        "FOH HDMI",
+        "Stream Output",
+        "n/c",
+        "ATEM OUT",
+    ], output_names=[
+        "Compo1 Monitor",
+        "Compo2 Monitor",
+        "ATEM IN 3",
+        "ATEM IN 4",
+        "ATEM IN 5",
+        "Stream Team",
+        "Bar Screen",
+        "Main Screen",
+    ], input_format="\u203a\u2039", output_format="\u2039\u203a")
+
+    # there's still a bit of space left in the lower-left end of the page,
+    # so put a few potentially useful macros there
+    add_xbar_button(page, "Default Monitors", (1,1), (2,2))
+    add_xbar_button(page, "Default ATEM", (1,3),(2,4),(3,5))
+    add_xbar_button(page, "ATEM to Screens", (8,6,7,8), cmd=lambda:mode(60))
+    page.add_group_label("MACROS")
+
+
+if __name__ == "__main__":
+    ctrlpad.run_application("Deadline 2026 Control Panel", init_app)
