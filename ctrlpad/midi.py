@@ -2,8 +2,20 @@
 # SPDX-License-Identifier: MIT
 
 import logging
-import rtmidi
 from typing import Sequence
+
+try:
+    import rtmidi
+except ImportError:
+    class rtmidi:
+        class MidiOut:
+            warned = False
+            def __init__(self):
+                if not self.__class__.warned:
+                    logging.getLogger("rtmidi").error("rtmidi module not available, using mock implementation")
+                    self.__class__.warned = True
+            def get_ports(self):
+                return []
 
 __all__ = ['SendMIDI', 'USBMIDI', 'NoteOn', 'NoteOff']
 
