@@ -93,6 +93,8 @@ class _OpenGL:
         ("GetString",                ctypes.c_char_p, ctypes.c_uint),
         ("Enable",                   None, ctypes.c_uint),
         ("Disable",                  None, ctypes.c_uint),
+        ("Finish",                   None),
+        ("Flush",                    None),
         ("GetError",                 ctypes.c_uint),
         ("Viewport",                 None, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int),
         ("Clear",                    None, ctypes.c_uint),

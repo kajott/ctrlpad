@@ -313,6 +313,8 @@ class Renderer:
     def end_frame(self):
         "finish drawing a frame"
         self.flush()
+        gl.Flush()
+        gl.Finish()
         if (self.nquads > self.max_nquads) or (self.nbatches > self.max_nbatches):
             log.info("most complex frame: %d quad(s) across %d batch(es)", self.nquads, self.nbatches)
             self.max_nquads = max(self.max_nquads, self.nquads)
