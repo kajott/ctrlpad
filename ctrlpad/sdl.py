@@ -210,7 +210,10 @@ class GLAppWindow:
         self._lib = None
         self._win = None
         self._ctx = None
-        libpath = ctypes.util.find_library("SDL2")
+        libpath = None
+        for libname in ("SDL2", "SDL2-2.0", "SDL2-2.0-0"):
+            libpath = ctypes.util.find_library(libname)
+            if libpath: break
         if (sys.platform == 'win32') and libpath:
             self._lib = ctypes.CDLL(name=libpath, handle=_ctypes.LoadLibrary(libpath))
         else:
