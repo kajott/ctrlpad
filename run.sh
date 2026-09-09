@@ -8,8 +8,16 @@
 # Configuration is done in the file run.conf; look into run.conf.example
 # for possible settings.
 
+ARG="$1"
+
 # "use strict"
 set -eu
+
+# show help
+if [ "$ARG" == "-h" -o "$ARG" == "--help" ] ; then
+    echo "Usage: $0 [-h/--help/-k/--kill]"
+    exit 0
+fi
 
 # use this script's directory as working directory
 cd "$(dirname "$0")"
@@ -48,6 +56,8 @@ if [ -r run.pid ] ; then
         rm -f run.pid
     fi
 fi
+
+[ "$ARG" == "-k" -o "$ARG" == "--kill" ] && exit 0
 
 # run MPD if needed and not already running
 if [ -n "${MPD_PIDFILE:-}" -a -n "${MPD_CONFIG:-}" ] ; then
