@@ -29,7 +29,7 @@ The primary use case, and the reason why this software exists, is managing backg
 ## Installation
 
 The control panel applications (like `ctrlpad_test.py`) can just be run like any other Python script if the following prerequisites are fulfilled:
-- [Windows] a [Python](https://www.python.org/downloads/) installation
+- a [Python](https://www.python.org/downloads/) installation
   (Linux distributions generally ship with Python these days, so an extra installation is usually not needed there)
 - [Windows] a copy of `SDL2.dll` in the same directory as the application; get the [latest Windows package](https://github.com/libsdl-org/SDL/releases) with the architecture that fits your Python installation and extract the file from there
 - an installation of [Pillow](https://python-pillow.org)
@@ -39,7 +39,7 @@ The control panel applications (like `ctrlpad_test.py`) can just be run like any
 - [Linux] an installation of the SDL2 library via the distribution's package manager
   - e.g. on Debian, Ubuntu and derivates, run `sudo apt install libsdl2-2.0-0`
 
-(The Linux instructions may also work on other Unix-like systems like *BSD.)
+(The Linux instructions may also work on other Unix-like systems like the BSD family.)
 
 ## Using `run.sh`
 
@@ -53,7 +53,7 @@ On Unix systems, the wrapper script `run.sh` can be used to launch the applicati
 
 To do so, create a copy of [`run.conf.example`](run.conf.example) named `run.conf` and adjust the settings in that file as desired. Then, run `run.sh` to start the control panel. Re-running `run.sh` quits a potentially running instance of the control panel application and re-starts it. This can be useful e.g. when the script has been changed to add or modify the controls on the panel.
 
-Note that for running the control panel in the background (e.g. from an SSH session) using the `X11_DISPLAY` option in `run.conf`, the device must obviously run an X server. Compatibility with Xwayland or even KMS consoles hasn't been tested.
+Note that for running the control panel in the background (e.g. from an SSH session) using the `X11_DISPLAY` option in `run.conf`, the device must obviously run an X server or at least Xwayland. Compatibility with pure KMS consoles hasn't been tested.
 
 ## Creating a custom control panel
 
