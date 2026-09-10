@@ -89,7 +89,7 @@ echo "new run starting at $(date)" >>run.log
 echo "====================================================" >>run.log
 echo >>run.log
 echo "command line: python3 \"./$APP\" -p run.pid ${ARGS:-}" >>run.log
-nohup python3 "./$APP" -p run.pid ${ARGS:-} 2>&1 </dev/null >>run.log & newpid=$!
+nohup python3 "./$APP" -p run.pid ${ARGS:-} </dev/null >>run.log 2>&1 & newpid=$!
 sleep 1
 if [ ! -d "/proc/$newpid" ] ; then
     echo "FAILED."
